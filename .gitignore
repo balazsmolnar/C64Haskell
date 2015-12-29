@@ -6,3 +6,8 @@
 /Base.o
 /Base.hi
 /hlog.log
+/*.o
+/*.hi
+/*.prof
+/x
+/thp.exe

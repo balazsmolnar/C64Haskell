@@ -9,9 +9,9 @@ import Data.Bits
 import Data.Char    
 import Data.Maybe
 import Data.ByteString as BS
-import System.Console.ANSI
+--import System.Console.ANSI
 import qualified Data.Vector.Unboxed as V
-import Test.QuickCheck
+--import Test.QuickCheck
 import Data.Array.ST
 import Control.Monad.ST
 
@@ -19,26 +19,6 @@ import Base
 import Instructions
 
 type Memory = Array Int Byte
-
-colorList = [
-                (Dull,Black),
-                (Vivid,White),
-                (Dull,Red),
-                (Vivid,Cyan),
-                (Vivid,Magenta),
-                (Dull,Green),
-                (Dull,Blue),
-                (Vivid,Yellow),
-                (Dull,Yellow),
-                (Dull,Magenta),
-                (Vivid,Red),
-                (Dull,White),
-                (Dull,White),
-                (Vivid,Green),
-                (Vivid,Blue),
-                (Dull,Cyan)
-            ]
-colors = array (0::Byte,0x0F::Byte) (L.zip [0::Byte ..0x0F ::Byte] colorList)
 
                         -- +-+-+-+-+-+-+-+-+
                         -- |N|V| |B|D|I|Z|C|  PROCESSOR STATUS REG "P"
@@ -59,55 +39,79 @@ flagIBit = 2
 flagVBit = 6
 flagNBit = 7
 
-data CPUState = CPUState { memory :: Memory, regA :: Byte, regX :: Byte, regY :: Byte, regS :: Byte, stackPointer ::Byte, pPointer :: Int, stopped :: Bool, changedMemory :: [(Int, Byte)] }  
+data CPUState = CPUState { memory :: Memory, regA :: Byte, regX :: Byte, regY :: Byte, regS :: Byte, stackPointer ::Byte, pPointer :: Int, stopped :: Bool, changedMemory :: [(Int, Byte)], characterROM :: Memory }  
 
 instance Show CPUState where
   show cpu = "A: " ++ (show $ regA cpu) ++ "  X: " ++ (show $ regX cpu) ++ "  Y: " ++ (show $ regY cpu) ++ "  P: " ++ (show $ pPointer cpu) ++ "  SP: " ++ (show $ stackPointer cpu) ++ 
              " C: " ++ (show $ regS cpu `testBit` flagCBit)  ++ " Z: " ++ (show $ regS cpu `testBit` flagZBit)  ++ " N: " ++ (show $ regS cpu `testBit` flagNBit)  ++
                " V: " ++ (show $ regS cpu `testBit` flagVBit)  ++ " Stooped: " ++ (show $ stopped cpu)  ++ 
-             " Memory: " ++ (show $ L.take 10 $ L.drop 0x0400  $ Data.Array.elems $ memory cpu) ++ 
+             " Memory: " ++ (show $ L.take 10 $ L.drop 0x0277  $ Data.Array.elems $ memory cpu) ++ 
              " Stack: " ++ (show $ L.take 5 $ L.drop 0x1FB  $ Data.Array.elems $ memory cpu) ++
              (show $ (iType (instructionCodes ! ((memory cpu) ! pPointer cpu))))
   
 initialCPUState pointer = CPUState 
-                        (array (0, 0xFFFF) [(i, 0::Byte) | i <- [0..0xFFFF]]) 0 0 0 0 0xFF pointer False []
+                        (array (0, 0xFFFF) [(i, 0::Byte) | i <- [0..0xFFFF]]) 0 0 0 0 0xFF pointer False [] (array (0, 0x0400) [(i, 0::Byte) | i <- [0..0x0400]])
 
 cpuNewPointer pointer cpu = CPUState 
-                        (memory cpu) (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) pointer (stopped cpu) (changedMemory cpu)
+                        (memory cpu) (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) pointer (stopped cpu) (changedMemory cpu) (characterROM cpu)
 
 cpuNewMemory changedMemoryAddress value cpu = CPUState 
-                        (memory cpu) (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) ((changedMemoryAddress, value):(changedMemory cpu))
+                        (memory cpu) (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) ((changedMemoryAddress, value):(changedMemory cpu)) (characterROM cpu)
 
 cpuNewRegA :: Byte -> CPUState -> CPUState                        
 cpuNewRegA regA cpu = CPUState 
-                        (memory cpu) regA (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu)
+                        (memory cpu) regA (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) (characterROM cpu)
 
 cpuNewRegX :: Byte -> CPUState -> CPUState                        
 cpuNewRegX regX cpu = CPUState 
-                        (memory cpu) (regA cpu) regX (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu)
+                        (memory cpu) (regA cpu) regX (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) (characterROM cpu)
 
 cpuNewRegY :: Byte -> CPUState -> CPUState                        
 cpuNewRegY regY cpu = CPUState 
-                        (memory cpu) (regA cpu) (regX cpu) regY (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu)
+                        (memory cpu) (regA cpu) (regX cpu) regY (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) (characterROM cpu)
 
 cpuNewRegS regS cpu = CPUState 
-                        (memory cpu) (regA cpu) (regX cpu) (regY cpu) regS (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu)
+                        (memory cpu) (regA cpu) (regX cpu) (regY cpu) regS (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) (characterROM cpu)
 
 cpuNewSP :: Byte -> CPUState -> CPUState                        
 cpuNewSP sp cpu = CPUState 
-                        (memory cpu) (regA cpu) (regX cpu) (regY cpu) (regS cpu) sp (pPointer cpu) (stopped cpu) (changedMemory cpu)
+                        (memory cpu) (regA cpu) (regX cpu) (regY cpu) (regS cpu) sp (pPointer cpu) (stopped cpu) (changedMemory cpu) (characterROM cpu)
 
                         
 cpuStop cpu = CPUState 
-                        (memory cpu) (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) True []
+                        (memory cpu) (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) True [] (characterROM cpu)
                         
 setBitValue :: Int -> Bool -> Byte -> Byte
+--setBitValue flagBit flag v 
+--    | flagBit==0 && flag = v .|. 1
+--    | flagBit==0 && flag==False = v .&. 254
+--    | flagBit==1 && flag = v .|. 2
+--    | flagBit==1 && flag==False = v .&. 253
+--    | flagBit==2 && flag = v .|. 4
+--    | flagBit==2 && flag==False = v .&. 251
+--    | flagBit==3 && flag = v .|. 8
+--    | flagBit==3 && flag==False = v .&. 247
+--    | flagBit==4 && flag = v .|. 16
+--    | flagBit==4 && flag==False = v .&. 239
+--    | flagBit==5 && flag = v .|. 32
+--    | flagBit==5 && flag==False = v .&. 223
+--    | flagBit==6 && flag = v .|. 64
+--    | flagBit==6 && flag==False = v .&. 191
+--    | flagBit==7 && flag = v .|. 128
+--    | flagBit==7 && flag==False = v .&. 127
 setBitValue flagBit True v = v `setBit` flagBit
 setBitValue flagBit False v = v `clearBit` flagBit
+
     
 setZN :: Byte -> Byte -> Byte
-setZN value s = 
-        setBitValue flagZBit (value==0) (setBitValue flagNBit (value `testBit` 7) s)
+--setZN value s = 
+--        setBitValue flagZBit (value==0) (setBitValue flagNBit (value `testBit` 7) s)
+setZN value s 
+    | value == 0 && n == True = s .|. 130
+    | value == 0 = (s .|. 2) .&. 127
+    | n == True = (s .&. 253) .|. 128
+    | otherwise = s .&. 125
+    where n = value `testBit` 7
 
 setFlag :: Int -> CPUState -> CPUState
 setFlag flagBit cpu = 
@@ -555,34 +559,38 @@ step cpu =
             NOP -> cpu
             CLD -> cpu
 
-            otherwise -> error $ "not implemented " ++ show inst
+            otherwise -> error $ "not implemented " ++ (show inst) ++ "  Memory: " ++ (show $ L.take 10 $ L.drop 0x0313  $ Data.Array.elems $ memory cpu)
         in
         cpuNewPointer (pPointer cpu2 + instructionLength m) cpu2 
             
-clcTest :: Byte -> Bool
-clcTest s = 
-        let cpu = CPUState (array (0, 0xFFFF) [(i, 0::Byte) | i <- [0..0xFFFF]]) 0 0 0 s 0xFF 0 False [] in
-        not $ getFlag flagCBit (fCLC cpu)
+--clcTest :: Byte -> Bool
+--clcTest s = 
+--        let cpu = CPUState (array (0, 0xFFFF) [(i, 0::Byte) | i <- [0..0xFFFF]]) 0 0 0 s 0xFF 0 False []  (array (0, 0x0400) [(i, 0::Byte) | i <- [0..0x0400]]) in
+--        not $ getFlag flagCBit (fCLC cpu)
         
 fileToByteList :: String -> IO [Byte]
 fileToByteList path = do
     contents <- BS.readFile path
     return $ unpack contents
     
-loadMemory :: String  -> IO CPUState
-loadMemory path = do
-    content <- fileToByteList path
+loadMemory :: String  -> String  -> IO CPUState
+loadMemory romPath characterRomPath = do
+    content <- fileToByteList romPath
+    charContent <- fileToByteList characterRomPath
     let address = word8ToInt (content !! 0) + 256*word8ToInt (content !! 1)   
     let memoryL = (L.take address $ repeat 0) ++ (L.tail $ L.tail content) ++ (repeat 0)
-    return $ CPUState (array (0, 0xFFFF) $ L.zip [0..0xFFFF] memoryL) 0 0 0 0 0xFF address False []
+    
+    return $ CPUState (array (0, 0xFFFF) $ L.zip [0..0xFFFF] memoryL) 0 0 0 0 0xFF address False [] (array (0, 0x0400) $ L.zip [0..0x0400] charContent)
 
 loadRom = do
     let path = "d:\\Hackaton\\Phase3\\64c.251913-01.bin"
+    let charPath = "d:\\temp\\Haskell\\C64\\characters.901225-01.bin"
     content <- fileToByteList path
+    charContent <- fileToByteList charPath
     let basic_address = 0xA000   
     let kernal_address = 0xE000
     let memoryL = (L.take basic_address $ repeat 0) ++ (L.take 0x2000 content) ++ (L.take 0x2000 $ repeat 0) ++ (L.take 0x2000 $ L.drop 0x2000 content)
-    return $ CPUState (array (0, 0xFFFF) $ L.zip [0..0xFFFF] memoryL) 0 0 0 0 0xFF 0xFCE2 False []
+    return $ CPUState (array (0, 0xFFFF) $ L.zip [0..0xFFFF] memoryL) 0 0 0 0 0xFF 0xFCE2 False [] (array (0, 0x0400) $ L.zip [0..0x0400] charContent)
 
 unsafeWrite arr index newValue = do
     mutableArr <- unsafeThawIOArray arr
@@ -596,22 +604,51 @@ unsafeWrite2 arr index1 newValue1 index2 newValue2 = do
     Data.Array.Base.unsafeWrite mutableArr index2 newValue2
     newArr <- unsafeFreezeIOArray mutableArr
     return newArr
+
+unsafeWrite3 arr index1 newValue1 index2 newValue2 index3 newValue3 = do
+    mutableArr <- unsafeThawIOArray arr
+    Data.Array.Base.unsafeWrite mutableArr index1 newValue1
+    Data.Array.Base.unsafeWrite mutableArr index2 newValue2
+    Data.Array.Base.unsafeWrite mutableArr index3 newValue3
+    newArr <- unsafeFreezeIOArray mutableArr
+    return newArr
     
 run cpu = do
     --Prelude.putStrLn $ show (pPointer cpu) ++ " A:"++ show  (regA cpu) ++ " P:"++ show  (regS cpu)        
-    --print cpu
+    --print cpu\
+    --let a = pPointer cpu
     newCpu <- updateMemory cpu    
-    updateScreen newCpu (changedMemory cpu)
     
     --print newCpu
   --  print (changedMemory newCpu)
     --print (memory cpu ! 56333)
     if (stopped newCpu) then return ()--print cpu
     else run $ step newCpu
-        
+
+stepN cpu 0 = return cpu
+stepN cpu n = do
+    --print cpu
+    newCpu <- updateMemory cpu
+    if  (regS cpu) == -1 then return newCpu            
+    else stepN (step newCpu) (n-1)
+
+keyPressed :: CPUState -> Byte -> IO CPUState
+keyPressed cpu ch = do
+    --print cpu
+    --print $ show ch
+    cpu0 <- updateMemory cpu
+    let cpu2 =  setMemory 0x00c6 1 cpu0
+    let cpu3 =  setMemory 0x0277 ch cpu2
+    newCpu <- updateMemory cpu3
+    return newCpu
+
+interrupt cpu
+    | getFlag flagIBit cpu == True = cpu
+    | otherwise = cpuNewPointer (0xFF48) $ push (regS cpu) $ push (intToWord8(pPointer cpu `mod` 256)) $ push (intToWord8((pPointer cpu) `div` 256)) cpu 
+
+    
 start = do
 --    content <- loadMemory "d:\\Hackaton\\Phase1\\Prg\\1_first.prg"
-    setTitle "Commodore 64"
     --content <- loadMemory "d:\\Hackaton\\Phase1\\Prg\\2_loop.prg"
     --content <- loadMemory "d:\\Hackaton\\Phase1\\Prg\\3_subroutine.prg"
     --content <- loadMemory "d:\\Hackaton\\Phase2\\5_addressingmodes.prg"
@@ -619,27 +656,8 @@ start = do
     content <- loadRom    
     cpu <- run content
     return cpu
-  
-setChar x y ch fgColor bgColor = do
-    setCursorPosition y x    
-    setSGR [ 
-             SetColor Foreground Vivid fgColor
-           , SetColor Background Vivid bgColor
-           ]
-    Prelude.putStr [ch]
 
-setBorder bgColor = do
-    sequence $ L.map (\x -> setChar x 0 ' ' bgColor bgColor)[0..41]
-    sequence $ L.map (\x -> setChar x 26 ' ' bgColor bgColor) [0..41]
-    sequence $ L.map (\y -> setChar 0 y ' ' bgColor bgColor)  [0..26]
-    sequence $ L.map (\y -> setChar 41 y ' ' bgColor bgColor) [0..26]
-    
-c64chr :: Byte -> Char
-c64chr b 
-    | b >= 1 && b<=26 = chr $ word8ToInt(b)+ 64
-    | b==32 = ' '
-    | b>=48 && b <=58 = chr $ word8ToInt(b)
-    | otherwise  = '.'
+--createScreenMemory cpu = 
 
     
 updateMemory :: CPUState -> IO (CPUState)
@@ -649,44 +667,71 @@ updateMemory cpu = do
         0 -> return cpu
         1 -> do
                 newMemory <- C64.unsafeWrite (memory cpu) (fst $ cm!!0) (snd $ cm!!0)
-                let newCpu = CPUState newMemory (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) []
+                let newCpu = CPUState newMemory (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) [] (characterROM cpu)
                 return newCpu
         2 -> do
                 newMemory <- C64.unsafeWrite2 (memory cpu) (fst $ cm!!0) (snd $ cm!!0) (fst $ cm!!1) (snd $ cm!!1)
-                let newCpu = CPUState newMemory (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) []
+                let newCpu = CPUState newMemory (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) [] (characterROM cpu)
                 return newCpu
+        3 -> do
+                newMemory <- C64.unsafeWrite3 (memory cpu) (fst $ cm!!0) (snd $ cm!!0) (fst $ cm!!1) (snd $ cm!!1) (fst $ cm!!2) (snd $ cm!!2)
+                let newCpu = CPUState newMemory (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) [] (characterROM cpu)
+                return newCpu
+        otherwise -> do
+                error $ show $ cpu
+
          
 --updateMemory cpu = do
 --     print (changedMemory cpu)
 --     if (changedMemory cpu) == Nothing then return cpu
 --     else do
 --        newMemory <- Main.unsafeWrite (memory cpu) (fromJust (changedMemory cpu)) (changedMemoryValue cpu)
-        -- print $ newMemory ! (fromJust (changedMemory cpu))
+        --   $ newMemory ! (fromJust (changedMemory cpu))
 --        let newCpu = CPUState newMemory (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) (changedMemoryValue cpu)
 --        return newCpu
 
-updateScreen :: CPUState -> [(Int, Byte)] -> IO ()
-updateScreen cpu changedMemory
-    | changedMemory == [] = return ()
-    | otherwise = do
-        updateScreen2 cpu (fst $ L.head $ changedMemory)
-        return ()
-        
+borderWidth = 20
+screenWidth :: Int
+screenWidth = borderWidth*2 + 320
+screenHeight :: Int
+screenHeight = borderWidth*2 + 200
 
-updateScreen2 :: CPUState -> Int -> IO ()
-updateScreen2 cpu address
-    | address >= 0x400 && address < 0x400+1000 = do 
-                    setChar ((address-0x400) `mod` 40 + 1) ((address-0x400) `div` 40 +1) (c64chr $ (memory cpu) ! address) (snd $ colors ! ((memory cpu) ! (address+0x400)  Data.Bits..&. 0x0F)) (snd $ colors ! ((memory cpu) ! 0xD021  Data.Bits..&. 0x0F)) 
-                    return ()
-    | address == 0xD020 = do 
-                    setBorder (snd $ colors ! (((memory cpu) ! 0xD020) Data.Bits..&. 0x0F))
-                    return ()
-    | otherwise = return ()
-    
-    
-main = do
-    clearScreen
-    start
+xyToIndex x y = x+y*screenWidth
+
+getBorder :: Byte -> [(Int, Byte)]
+getBorder value =
+        [(xyToIndex x y, value) | x <- [0..borderWidth-1]++[borderWidth+320..screenWidth-1], y <- [0..screenHeight-1]]++
+        [(xyToIndex x y, value) | x <- [borderWidth..screenWidth-borderWidth-1], y <- [0..borderWidth-1]++[borderWidth+200..screenHeight-1]]
+
+getGraphics :: CPUState -> [(Int, Byte)]
+getGraphics cpu =
+        L.concat $ L.map (\c -> copyCharToScreen cpu (fst c) (snd c) 14 7) [(x,y) | x <- [0..39], y <- [0..24]] 
+
+        
+charLineToList cpu ch line bkColor fgColor x y = 
+        let addr = (word8ToInt (ch Data.Bits..&. 0x7F)) * 8 + line
+            
+            b = (characterROM cpu) ! (addr)
+            l = if ch < 128 then [testBit b a | a <- [7,6..0]] else [not (testBit b a) | a <- [7,6..0]]
+            colors = L.map (\a -> if a==True then fgColor else bkColor) l
+            memAddr = xyToIndex x (y+line) in
+        L.zip [memAddr .. memAddr+7] colors
+        
+copyCharToScreen cpu x y bkColor fgColor = 
+        let screenX = x*8 + borderWidth
+            screenY = y*8 + borderWidth
+            chAddress = 0x400 + y*40 + x
+            ch = (memory cpu) ! chAddress in
+        L.concat $ L.map (\l -> charLineToList cpu ch l bkColor fgColor screenX screenY) [0..7]
+
+getScreenBytes :: CPUState -> [(Int, Byte)]
+getScreenBytes cpu =
+        getBorder ((memory cpu) ! 0xD020) ++ (getGraphics cpu)
+
+            
+--main = do
+--    clearScreen
+--    start
 --startTest = do
 --    content <- fileToByteList "d:\\Hackaton\\Phase1\\Prg\\1_first.prg"
 --    let cpu = CPUState (array (0, 0xFFFF) [(i, 0::Byte) | i <- [0..0xFFFF]]) 0 0 0 s 0 in
