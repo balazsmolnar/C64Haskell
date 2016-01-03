@@ -14,9 +14,10 @@ import qualified Data.Vector.Unboxed as V
 --import Test.QuickCheck
 import Data.Array.ST
 import Control.Monad.ST
-
+import Numeric (showHex)
 import Base
 import Instructions
+import Keyboard
 
 type Memory = Array Int Byte
 
@@ -42,7 +43,7 @@ flagNBit = 7
 data CPUState = CPUState { memory :: Memory, regA :: Byte, regX :: Byte, regY :: Byte, regS :: Byte, stackPointer ::Byte, pPointer :: Int, stopped :: Bool, changedMemory :: [(Int, Byte)], characterROM :: Memory }  
 
 instance Show CPUState where
-  show cpu = "A: " ++ (show $ regA cpu) ++ "  X: " ++ (show $ regX cpu) ++ "  Y: " ++ (show $ regY cpu) ++ "  P: " ++ (show $ pPointer cpu) ++ "  SP: " ++ (show $ stackPointer cpu) ++ 
+  show cpu = "A: " ++ (show $ regA cpu) ++ "  X: " ++ (show $ regX cpu) ++ "  Y: " ++ (show $ regY cpu) ++ "  P: " ++ (showHex  (pPointer cpu) "") ++ "  SP: " ++ (show $ stackPointer cpu) ++ 
              " C: " ++ (show $ regS cpu `testBit` flagCBit)  ++ " Z: " ++ (show $ regS cpu `testBit` flagZBit)  ++ " N: " ++ (show $ regS cpu `testBit` flagNBit)  ++
                " V: " ++ (show $ regS cpu `testBit` flagVBit)  ++ " Stooped: " ++ (show $ stopped cpu)  ++ 
              " Memory: " ++ (show $ L.take 10 $ L.drop 0x0277  $ Data.Array.elems $ memory cpu) ++ 
@@ -336,7 +337,7 @@ fJSR :: CPUState -> Byte -> Byte -> CPUState
 fJSR cpu b1 b2 =
     let addr = getAddress cpu Absolute b1 b2 in
     cpuNewPointer (addr-3) $ push (intToWord8(pPointer cpu+2 `mod` 256)) $ push (intToWord8((pPointer cpu+2) `div` 256)) cpu 
-    
+     
 fRTS :: CPUState -> CPUState
 fRTS cpu = 
     let low = peek cpu
@@ -457,13 +458,7 @@ fEOR cpu mode b1 b2 =
         let value = (getValue cpu mode b1 b2) `xor` (regA cpu)
             s = (setZN value (regS cpu)) in
             cpuNewRegA value $ cpuNewRegS s cpu
-            
-word8ToInt :: Word8 -> Int
-word8ToInt x = fromInteger (toInteger x) :: Int
-
-intToWord8 :: Int -> Word8
-intToWord8 x = fromInteger (toInteger x) :: Word8
-     
+                 
 getAddress :: CPUState -> AddressingMode -> Byte -> Byte -> Int
 getAddress cpu IndexedIndirectX byte1 byte2 =
     let addr = word8ToInt byte1 + word8ToInt (regX cpu) in
@@ -592,11 +587,42 @@ loadRom = do
     let memoryL = (L.take basic_address $ repeat 0) ++ (L.take 0x2000 content) ++ (L.take 0x2000 $ repeat 0) ++ (L.take 0x2000 $ L.drop 0x2000 content)
     return $ CPUState (array (0, 0xFFFF) $ L.zip [0..0xFFFF] memoryL) 0 0 0 0 0xFF 0xFCE2 False [] (array (0, 0x0400) $ L.zip [0..0x0400] charContent)
 
-unsafeWrite arr index newValue = do
-    mutableArr <- unsafeThawIOArray arr
-    Data.Array.Base.unsafeWrite mutableArr index newValue
+loadGame cpu = do
+    print "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    content <- fileToByteList "c:\\temp\\MI\\hunchback.prg"
+    let address = word8ToInt (content !! 0) + 256*word8ToInt (content !! 1)   
+    mutableArr <- unsafeThawIOArray (memory cpu)
+    unsafeWriteList mutableArr address (L.tail $ L.tail content)
     newArr <- unsafeFreezeIOArray mutableArr
-    return newArr
+    let newCpu = CPUState newArr (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) [] (characterROM cpu)
+    return newCpu
+
+
+unsafeWriteList arr index [] = return ()
+unsafeWriteList mutableArr index (x:xs) = do
+    Data.Array.Base.unsafeWrite mutableArr index x
+    unsafeWriteList mutableArr (index+1) xs
+    return ()
+
+unsafeWrite arr index newValue = do
+    --print $ show index ++ "  " ++ show newValue
+    mutableArr <- unsafeThawIOArray arr
+    if index /= 0xDC00 then
+        Data.Array.Base.unsafeWrite mutableArr index newValue
+    else do
+        val <- getKeyMatrixByRow newValue
+        Data.Array.Base.unsafeWrite mutableArr 0xDC01 val
+        if (newValue==239) then
+            Prelude.putStr $ "SPACE F5:" ++ show ((arr)!0xF6)--print $ show newValue ++ "  " ++ show val
+        else
+            Prelude.putStr ""
+    if (index == 0xC6) then do
+        print newValue
+        newArr <- unsafeFreezeIOArray mutableArr
+        return newArr
+    else do
+        newArr <- unsafeFreezeIOArray mutableArr
+        return newArr
 
 unsafeWrite2 arr index1 newValue1 index2 newValue2 = do
     mutableArr <- unsafeThawIOArray arr
@@ -615,7 +641,7 @@ unsafeWrite3 arr index1 newValue1 index2 newValue2 index3 newValue3 = do
     
 run cpu = do
     --Prelude.putStrLn $ show (pPointer cpu) ++ " A:"++ show  (regA cpu) ++ " P:"++ show  (regS cpu)        
-    --print cpu\
+   --print cpu\
     --let a = pPointer cpu
     newCpu <- updateMemory cpu    
     
@@ -634,13 +660,13 @@ stepN cpu n = do
 
 keyPressed :: CPUState -> Byte -> IO CPUState
 keyPressed cpu ch = do
-    --print cpu
-    --print $ show ch
-    cpu0 <- updateMemory cpu
-    let cpu2 =  setMemory 0x00c6 1 cpu0
-    let cpu3 =  setMemory 0x0277 ch cpu2
-    newCpu <- updateMemory cpu3
-    return newCpu
+    if (ch == 93) then loadGame cpu -- ']'
+    else do
+         updateMemory cpu
+--        let cpu2 =  setMemory 0x00c6 1 cpu0
+--        let cpu3 =  setMemory 0x0277 ch cpu2
+--        newCpu <- updateMemory cpu3
+--        return newCpu
 
 interrupt cpu
     | getFlag flagIBit cpu == True = cpu
