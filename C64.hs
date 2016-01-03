@@ -582,10 +582,11 @@ loadRom = do
     let charPath = "d:\\temp\\Haskell\\C64\\characters.901225-01.bin"
     content <- fileToByteList path
     charContent <- fileToByteList charPath
+    let charROM = charContent ++ (L.map (255-) charContent)
     let basic_address = 0xA000   
     let kernal_address = 0xE000
     let memoryL = (L.take basic_address $ repeat 0) ++ (L.take 0x2000 content) ++ (L.take 0x2000 $ repeat 0) ++ (L.take 0x2000 $ L.drop 0x2000 content)
-    return $ CPUState (array (0, 0xFFFF) $ L.zip [0..0xFFFF] memoryL) 0 0 0 0 0xFF 0xFCE2 False [] (array (0, 0x0400) $ L.zip [0..0x0400] charContent)
+    return $ CPUState (array (0, 0xFFFF) $ L.zip [0..0xFFFF] memoryL) 0 0 0 0 0xFF 0xFCE2 False [] (array (0, 0x0800) $ L.zip [0..0x0800] charROM)
 
 loadGame cpu = do
     print "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
@@ -612,12 +613,8 @@ unsafeWrite arr index newValue = do
     else do
         val <- getKeyMatrixByRow newValue
         Data.Array.Base.unsafeWrite mutableArr 0xDC01 val
-        if (newValue==239) then
-            Prelude.putStr $ "SPACE F5:" ++ show ((arr)!0xF6)--print $ show newValue ++ "  " ++ show val
-        else
-            Prelude.putStr ""
-    if (index == 0xC6) then do
-        print newValue
+    if (index == 0xDD00 || index == 0xD018 || index == 0xD011 || index == 0xD016) then do
+        print $ (showHex index "" ) ++ ": " ++ show newValue
         newArr <- unsafeFreezeIOArray mutableArr
         return newArr
     else do

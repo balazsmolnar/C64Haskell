@@ -29,10 +29,23 @@ updateScreen buffer cpu = do
             return ()
 
 updateCharLine buffer cpu ch line bkColor fgColor x y = do
-        let addr = (word8ToInt (ch Data.Bits..&. 0x7F)) * 8 + line            
+        let addr = word8ToInt ch * 8 + line            
         let b = charByteAtAddress cpu addr
-        let l = if ch < 128 then [testBit b a | a <- [7,6..0]] else [not (testBit b a) | a <- [7,6..0]]
+        let l = [testBit b a | a <- [7,6..0]]
         let colors = map (\a -> if a==True then fgColor else bkColor) l
+        let memAddr = xyToIndex x (y+line)
+        pokeBytes buffer memAddr colors
+
+updateCharLineMultiColor buffer cpu ch line bkColor bkColor2 bkColor3 fgColor x y = do
+        let addr = word8ToInt ch * 8 + line            
+        let b = charByteAtAddress cpu addr
+        let l = [(b `shiftR` a) .&. 3 | a <- [6, 6, 4, 4, 2, 2, 0, 0]]
+        let colors = map (\a -> case a of
+                                    0 -> bkColor
+                                    1 -> bkColor2
+                                    2 -> bkColor3
+                                    3 -> fgColor
+                          ) l
         let memAddr = xyToIndex x (y+line)
         pokeBytes buffer memAddr colors
 
@@ -43,15 +56,31 @@ updateCharOnScreen buffer cpu x y = do
         let chAddress = charScreenStart cpu + y*40 + x
         let ch = (memory cpu) ! chAddress
         let bkColor = (memory cpu) ! 0xD021
+        let bkColor2 = (memory cpu) ! 0xD022
+        let bkColor3 = (memory cpu) ! 0xD023
         let fgColor = (memory cpu) ! (0xD800 + y*40 + x)
-        updateCharLine buffer cpu ch 0 bkColor fgColor screenX screenY
-        updateCharLine buffer cpu ch 1 bkColor fgColor screenX screenY
-        updateCharLine buffer cpu ch 2 bkColor fgColor screenX screenY
-        updateCharLine buffer cpu ch 3 bkColor fgColor screenX screenY
-        updateCharLine buffer cpu ch 4 bkColor fgColor screenX screenY
-        updateCharLine buffer cpu ch 5 bkColor fgColor screenX screenY
-        updateCharLine buffer cpu ch 6 bkColor fgColor screenX screenY
-        updateCharLine buffer cpu ch 7 bkColor fgColor screenX screenY
+     
+        let isMultiColor = (((memory cpu) ! 0xD016) .&. 16 > 0) && (fgColor .&. 8 > 0)
+        
+        if (isMultiColor==False) then do
+            updateCharLine buffer cpu ch 0 bkColor fgColor screenX screenY
+            updateCharLine buffer cpu ch 1 bkColor fgColor screenX screenY
+            updateCharLine buffer cpu ch 2 bkColor fgColor screenX screenY
+            updateCharLine buffer cpu ch 3 bkColor fgColor screenX screenY
+            updateCharLine buffer cpu ch 4 bkColor fgColor screenX screenY
+            updateCharLine buffer cpu ch 5 bkColor fgColor screenX screenY
+            updateCharLine buffer cpu ch 6 bkColor fgColor screenX screenY
+            updateCharLine buffer cpu ch 7 bkColor fgColor screenX screenY
+        else do
+            updateCharLineMultiColor buffer cpu ch 0 bkColor bkColor2 bkColor3 fgColor screenX screenY
+            updateCharLineMultiColor buffer cpu ch 1 bkColor bkColor2 bkColor3 fgColor screenX screenY
+            updateCharLineMultiColor buffer cpu ch 2 bkColor bkColor2 bkColor3 fgColor screenX screenY
+            updateCharLineMultiColor buffer cpu ch 3 bkColor bkColor2 bkColor3 fgColor screenX screenY
+            updateCharLineMultiColor buffer cpu ch 4 bkColor bkColor2 bkColor3 fgColor screenX screenY
+            updateCharLineMultiColor buffer cpu ch 5 bkColor bkColor2 bkColor3 fgColor screenX screenY
+            updateCharLineMultiColor buffer cpu ch 6 bkColor bkColor2 bkColor3 fgColor screenX screenY
+            updateCharLineMultiColor buffer cpu ch 7 bkColor bkColor2 bkColor3 fgColor screenX screenY
+
         return ()
 
 updateGraphics :: Ptr Byte -> CPUState -> [(Int, Int)] -> IO ()
