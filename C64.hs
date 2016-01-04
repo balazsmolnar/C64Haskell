@@ -553,6 +553,7 @@ step cpu =
             RTI -> fRTI cpu
             NOP -> cpu
             CLD -> cpu
+            SED -> cpu -- not implemented
 
             otherwise -> error $ "not implemented " ++ (show inst) ++ "  Memory: " ++ (show $ L.take 10 $ L.drop 0x0313  $ Data.Array.elems $ memory cpu)
         in

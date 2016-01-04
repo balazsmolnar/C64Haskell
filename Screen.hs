@@ -46,7 +46,7 @@ updateCharLineMultiColor buffer cpu ch line bkColor bkColor2 bkColor3 fgColor x 
                                     0 -> bkColor
                                     1 -> bkColor2
                                     2 -> bkColor3
-                                    3 -> fgColor
+                                    3 -> (fgColor .&. 7)
                           ) l
         let memAddr = xyToIndex x (y+line)
         pokeBytes buffer memAddr colors
@@ -91,12 +91,12 @@ updateSprite buffer cpu index = do
     let enabled = ((memory cpu) ! 0xD015) `testBit` index
     if enabled then do
         let screenX = word8ToInt ((memory cpu) ! (0xD000+index*2)) + borderWidth - 24 + if ((memory cpu) ! 0xD010) `testBit` index  then 256 else 0
-        let screenY = word8ToInt ((memory cpu) ! (0xD001+index*2)) + borderWidth - 60
+        let screenY = word8ToInt ((memory cpu) ! (0xD001+index*2)) + borderWidth - 50
         let spriteMemory = word8ToInt ((memory cpu) ! (index + 1016 + charScreenStart cpu)) * 64 + vicBank cpu
-        let fgColor = (memory cpu) ! (0xD027+index)
+        let fgColor = ((memory cpu) ! (0xD027+index)) .&. 0x0F
         let isMultiColor = ((memory cpu) ! 0xD01C) `testBit` index
-        let bkColor1 = (memory cpu) ! (0xD025+index*2)
-        let bkColor2 = (memory cpu) ! (0xD026+index*2)
+        let bkColor1 = ((memory cpu) ! 0xD025)
+        let bkColor2 = ((memory cpu) ! 0xD026)
 
         if (isMultiColor) then do
             foldM (\acc x -> updateSpriteLineMultiColor buffer cpu x fgColor bkColor1 bkColor2 screenX (screenY+x) (spriteMemory+x*3)) () [0..20]
@@ -129,7 +129,7 @@ updateSpriteLineMultiColor buffer cpu spriteIndex fgColor bkColor1 bkColor2 scre
                                     0 -> 0xFF
                                     1 -> bkColor1
                                     2 -> bkColor2
-                                    3 -> fgColor
+                                    3 -> (fgColor .&. 7)
                           ) l
 
     let memAddr = xyToIndex screenX screenY

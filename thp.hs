@@ -31,7 +31,7 @@ globalCPUState =
 main :: IO ()
 main =
   Graphics.Win32.allocaPAINTSTRUCT $ \ lpps -> do
-  hwnd <- createWindow (screenWidth*2) (screenHeight*2) (wndProc lpps onPaint)
+  hwnd <- createWindow (screenWidth*2+10) (screenHeight*2+30) (wndProc lpps onPaint)
   messagePump hwnd
 
 onPaint :: Graphics.Win32.RECT -> Graphics.Win32.HDC -> IO ()
@@ -131,15 +131,20 @@ createBitmap dc = do
     cpu2 <- stepN cpu 5000
     cpu3 <- updateMemory cpu2
     let cpu4 = interrupt cpu3
+    
+    cpu5 <- stepN cpu4 5000
+    cpu6 <- updateMemory cpu5
+    let cpu7 = interrupt cpu6
+
     --let screen = sort $ getScreenBytes cpu4
 
-    writeIORef globalCPUState cpu4
+    writeIORef globalCPUState cpu7
     
 --    pb <- mallocBytesFromList $ map snd screen
     let bytes = Foreign.Marshal.Alloc.mallocBytes size
     pb <- bytes
     let pb2 = castPtr pb::Ptr Byte
-    updateScreen pb2 cpu4
+    updateScreen pb2 cpu7
 
     hb <- Graphics.Win32.createDIBitmap dc 
                 (castPtr pBitmapInfoHeader ::Graphics.Win32.LPBITMAPINFOHEADER)
