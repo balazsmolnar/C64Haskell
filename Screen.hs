@@ -10,6 +10,7 @@ import C64
 import Foreign.Ptr
 import Foreign.Storable
 import Control.Parallel
+import Control.Monad
 
 pokeBytes :: Storable a => Ptr b -> Int -> [a] -> IO ()
 pokeBytes p _ [] = return ()
@@ -25,7 +26,8 @@ updateScreen buffer cpu = do
         let isHiRes = ((memory cpu) ! 0xD011) .&. 32 > 0
         if isHiRes then error "Hi res mode turned on"
         else do
-            updateGraphics buffer cpu [(x,y) | x <- [0..39], y <- [0..24]] 
+            updateGraphics buffer cpu [(x,y) | x <- [0..39], y <- [0..24]]
+            updateSprites buffer cpu [0..7]            
             return ()
 
 updateCharLine buffer cpu ch line bkColor fgColor x y = do
@@ -62,25 +64,11 @@ updateCharOnScreen buffer cpu x y = do
      
         let isMultiColor = (((memory cpu) ! 0xD016) .&. 16 > 0) && (fgColor .&. 8 > 0)
         
-        if (isMultiColor==False) then do
-            updateCharLine buffer cpu ch 0 bkColor fgColor screenX screenY
-            updateCharLine buffer cpu ch 1 bkColor fgColor screenX screenY
-            updateCharLine buffer cpu ch 2 bkColor fgColor screenX screenY
-            updateCharLine buffer cpu ch 3 bkColor fgColor screenX screenY
-            updateCharLine buffer cpu ch 4 bkColor fgColor screenX screenY
-            updateCharLine buffer cpu ch 5 bkColor fgColor screenX screenY
-            updateCharLine buffer cpu ch 6 bkColor fgColor screenX screenY
-            updateCharLine buffer cpu ch 7 bkColor fgColor screenX screenY
+        if (isMultiColor) then do
+            foldM (\acc x -> updateCharLineMultiColor buffer cpu ch x bkColor bkColor2 bkColor3 fgColor screenX screenY) () [0..7]
         else do
-            updateCharLineMultiColor buffer cpu ch 0 bkColor bkColor2 bkColor3 fgColor screenX screenY
-            updateCharLineMultiColor buffer cpu ch 1 bkColor bkColor2 bkColor3 fgColor screenX screenY
-            updateCharLineMultiColor buffer cpu ch 2 bkColor bkColor2 bkColor3 fgColor screenX screenY
-            updateCharLineMultiColor buffer cpu ch 3 bkColor bkColor2 bkColor3 fgColor screenX screenY
-            updateCharLineMultiColor buffer cpu ch 4 bkColor bkColor2 bkColor3 fgColor screenX screenY
-            updateCharLineMultiColor buffer cpu ch 5 bkColor bkColor2 bkColor3 fgColor screenX screenY
-            updateCharLineMultiColor buffer cpu ch 6 bkColor bkColor2 bkColor3 fgColor screenX screenY
-            updateCharLineMultiColor buffer cpu ch 7 bkColor bkColor2 bkColor3 fgColor screenX screenY
-
+            foldM (\acc x -> updateCharLine buffer cpu ch x bkColor fgColor screenX screenY) () [0..7]
+            
         return ()
 
 updateGraphics :: Ptr Byte -> CPUState -> [(Int, Int)] -> IO ()
@@ -89,6 +77,66 @@ updateGraphics buffer cpu (x:xs) = do
         updateCharOnScreen buffer cpu (fst x) (snd x)
         updateGraphics buffer cpu xs
         return ()
+
+updateSprites :: Ptr Byte -> CPUState -> [Int] -> IO ()
+updateSprites buffer cpu [] = return ()
+updateSprites buffer cpu (x:xs) = do
+        updateSprite buffer cpu x
+        updateSprites buffer cpu xs
+        return ()
+
+updateSprite :: Ptr Byte -> CPUState -> Int -> IO ()
+updateSprite buffer cpu index = do
+
+    let enabled = ((memory cpu) ! 0xD015) `testBit` index
+    if enabled then do
+        let screenX = word8ToInt ((memory cpu) ! (0xD000+index*2)) + borderWidth - 24 + if ((memory cpu) ! 0xD010) `testBit` index  then 256 else 0
+        let screenY = word8ToInt ((memory cpu) ! (0xD001+index*2)) + borderWidth - 60
+        let spriteMemory = word8ToInt ((memory cpu) ! (index + 1016 + charScreenStart cpu)) * 64 + vicBank cpu
+        let fgColor = (memory cpu) ! (0xD027+index)
+        let isMultiColor = ((memory cpu) ! 0xD01C) `testBit` index
+        let bkColor1 = (memory cpu) ! (0xD025+index*2)
+        let bkColor2 = (memory cpu) ! (0xD026+index*2)
+
+        if (isMultiColor) then do
+            foldM (\acc x -> updateSpriteLineMultiColor buffer cpu x fgColor bkColor1 bkColor2 screenX (screenY+x) (spriteMemory+x*3)) () [0..20]
+        else do
+            foldM (\acc x -> updateSpriteLine buffer cpu x fgColor screenX (screenY+x) (spriteMemory+x*3)) () [0..20]
+        return ()
+    else do
+        return ()
+
+updateSpriteLine :: Ptr Byte -> CPUState -> Int -> Byte -> Int -> Int -> Int -> IO ()
+updateSpriteLine buffer cpu spriteIndex fgColor screenX screenY spriteMemory = do
+    let spriteByte1 = (memory cpu) ! spriteMemory
+    let spriteByte2 = (memory cpu) ! (spriteMemory+1)
+    let spriteByte3 = (memory cpu) ! (spriteMemory+2)
+    let l = [spriteByte1 `testBit` a | a <- [7,6..0]] ++ [spriteByte2 `testBit` a | a <- [7,6..0]] ++ [spriteByte3 `testBit` a | a <- [7,6..0]]
+    let memAddr = xyToIndex screenX screenY
+
+    let addrValue = [(fst addr, fgColor) | addr <- zip [memAddr..memAddr+23] l, snd addr]
+    foldM (\acc x -> pokeByteOff buffer (fst x) (snd x)) () addrValue
+    return ()
+
+updateSpriteLineMultiColor :: Ptr Byte -> CPUState -> Int -> Byte -> Byte -> Byte -> Int -> Int -> Int -> IO ()
+updateSpriteLineMultiColor buffer cpu spriteIndex fgColor bkColor1 bkColor2 screenX screenY spriteMemory = do
+    let spriteByte1 = (memory cpu) ! spriteMemory
+    let spriteByte2 = (memory cpu) ! (spriteMemory+1)
+    let spriteByte3 = (memory cpu) ! (spriteMemory+2)
+    
+    let l = [(spriteByte1 `shiftR` a) .&. 3 | a <- [6, 6, 4, 4, 2, 2, 0, 0]] ++ [(spriteByte2 `shiftR` a) .&. 3 | a <- [6, 6, 4, 4, 2, 2, 0, 0]] ++ [(spriteByte3 `shiftR` a) .&. 3 | a <- [6, 6, 4, 4, 2, 2, 0, 0]]
+    let colors = map (\a -> case a of
+                                    0 -> 0xFF
+                                    1 -> bkColor1
+                                    2 -> bkColor2
+                                    3 -> fgColor
+                          ) l
+
+    let memAddr = xyToIndex screenX screenY
+
+    let addrValue = [(fst addr, snd addr) | addr <- zip [memAddr..memAddr+23] colors, snd addr /= 0xFF]
+    foldM (\acc x -> pokeByteOff buffer (fst x) (snd x)) () addrValue
+    return ()
 
 updateHorizontalBorder :: Ptr Byte -> CPUState -> [Int] -> IO ()
 updateHorizontalBorder buffer cpu [] = return ()
