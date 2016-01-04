@@ -23,7 +23,7 @@ keyboardMatrix_old = [[toInt Graphics.Win32.vK_DELETE, fromEnum '3', fromEnum '5
                   [toInt Graphics.Win32.vK_DOWN, toInt Graphics.Win32.vK_SHIFT, fromEnum 'x', fromEnum 'v', fromEnum 'n', fromEnum '.', fromEnum '/', notSupportedKey]
                   ]
                   
-keyboardMatrix = M.fromList [(0xFE::Word8, [notSupportedKey, toInt Graphics.Win32.vK_RETURN, toInt Graphics.Win32.vK_RIGHT, toInt Graphics.Win32.vK_F7, toInt Graphics.Win32.vK_F1, toInt Graphics.Win32.vK_F3, toInt Graphics.Win32.vK_F5,toInt Graphics.Win32.vK_DOWN]),
+keyboardMatrix = M.fromList [(0xFE::Word8, [toInt Graphics.Win32.vK_BACK, toInt Graphics.Win32.vK_RETURN, toInt Graphics.Win32.vK_RIGHT, toInt Graphics.Win32.vK_F7, toInt Graphics.Win32.vK_F1, toInt Graphics.Win32.vK_F3, toInt Graphics.Win32.vK_F5,toInt Graphics.Win32.vK_DOWN]),
                   (0xFD::Word8, [fromEnum '3', fromEnum 'W', fromEnum 'A', fromEnum '4', fromEnum 'Z', fromEnum 'S', fromEnum 'E', toInt Graphics.Win32.vK_SHIFT]),
                   (0xFB::Word8, [fromEnum '5', fromEnum 'R', fromEnum 'D', fromEnum '6', fromEnum 'C', fromEnum 'F', fromEnum 'T', fromEnum 'X']),
                   (0xF7::Word8, [fromEnum '7', fromEnum 'Y', fromEnum 'G', fromEnum '8', fromEnum 'B', fromEnum 'H', fromEnum 'U', fromEnum 'V']),

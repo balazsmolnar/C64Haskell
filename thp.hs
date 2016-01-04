@@ -24,6 +24,12 @@ type Byte = Word8
 
 scale = 2
 
+pokeBytes :: Storable a => Ptr b -> Int -> [a] -> IO ()
+pokeBytes p _ [] = return ()
+pokeBytes p off (x:xs) = do
+    pokeByteOff p off x
+    pokeBytes p (off+1) xs
+
 globalCPUState :: IORef CPUState
 globalCPUState =
         unsafePerformIO $ newIORef (initialCPUState 0)
@@ -77,54 +83,14 @@ wndProc lpps onPaint hwnd wmsg wParam lParam
  | otherwise =
      Graphics.Win32.defWindowProc (Just hwnd) wmsg wParam lParam
 
-mallocBytesFromList :: [Byte] -> IO (Ptr ())
-mallocBytesFromList xs = do
-    let bytes = Foreign.Marshal.Alloc.mallocBytes $ length xs
-    pb <- bytes
-    let pb2 = castPtr pb::Ptr Byte
-    pokeBytes pb2 0 xs
-    return pb
         
 intToByte :: Int -> Byte
 intToByte x = fromInteger (toInteger x) :: Byte
-    
+
+
 createBitmap :: Graphics.Win32.HDC -> IO Graphics.Win32.HBITMAP
 createBitmap dc = do 
     
-    let size = fromIntegral screenWidth*screenHeight
-    let headerBytes = [
-                                                40, 0, 0, 0,                                                        -- DWORD biSize;
-                                                intToByte (screenWidth `mod` 256), intToByte (screenWidth `div` 256), 0, 0,     -- LONG  biWidth;
-                                                intToByte (screenHeight `mod` 256), intToByte (screenHeight `div` 256), 0, 0,   -- LONG  biHeight;
-                                                      1, 0,                                                         -- WORD  biPlanes;
-                                                      8, 0,                                                         -- WORD  biBitCount
-                                                0, 0, 0, 0,                                                         -- DWORD biCompression;
-                                                0, 0, 0, 0,                                                         -- DWORD biSizeImage;
-                                                0, 0, 0, 0,                                                         -- DWORD biXPelsPerMeter;
-                                                0, 0, 0, 0,                                                         -- DWORD biYPelsPerMeter;
-                                                16, 0, 0, 0,                                                         -- DWORD biClrUsed;
-                                                16, 0, 0, 0 ]                                                        -- DWORD biClrImportant;
-
-    let colorCodes = [
-                        0x00, 0x00, 0x00, 0x00,
-                        0xFF, 0xFF, 0xFF, 0x00,
-                        0x00, 0x00, 0x88, 0x00,
-                        0xEE, 0xFF, 0xAA, 0x00,
-                        0xCC, 0x44, 0xCC, 0x00,
-                        0x55, 0xCC, 0x00, 0x00,
-                        0xAA, 0x00, 0x00, 0x00,
-                        0x77, 0xEE, 0xEE, 0x00,
-                        0x55, 0x88, 0xDD, 0x00,
-                        0x00, 0x44, 0x66, 0x00,
-                        0x77, 0x77, 0xFF, 0x00,
-                        0x33, 0x33, 0x33, 0x00,
-                        0x77, 0x77, 0x77, 0x00,
-                        0x66, 0xFF, 0xAA, 0x00,
-                        0xFF, 0x88, 0x00, 0x00,
-                        0xBB, 0xBB, 0xBB, 0x00 ]                                                   
-    pBitmapInfoHeader <- mallocBytesFromList headerBytes
-       
-    pBitmapInfo <- mallocBytesFromList (headerBytes ++ colorCodes)
 
     cpu <- readIORef globalCPUState
     --print cpu
@@ -139,24 +105,7 @@ createBitmap dc = do
     --let screen = sort $ getScreenBytes cpu4
 
     writeIORef globalCPUState cpu7
-    
---    pb <- mallocBytesFromList $ map snd screen
-    let bytes = Foreign.Marshal.Alloc.mallocBytes size
-    pb <- bytes
-    let pb2 = castPtr pb::Ptr Byte
-    updateScreen pb2 cpu7
-
-    hb <- Graphics.Win32.createDIBitmap dc 
-                (castPtr pBitmapInfoHeader ::Graphics.Win32.LPBITMAPINFOHEADER)
-                Graphics.Win32.cBM_INIT pb
-                (castPtr pBitmapInfo ::Graphics.Win32.LPBITMAPINFO) 
-                Graphics.Win32.dIB_RGB_COLORS
-                
-    Foreign.Marshal.Alloc.free pb   
-    Foreign.Marshal.Alloc.free pBitmapInfo   
-    Foreign.Marshal.Alloc.free pBitmapInfoHeader
-    
-    --print hb
+    hb <- createScreenBitmap cpu dc
     if hb == nullPtr then error "hb is null"                    
     else return hb
      
