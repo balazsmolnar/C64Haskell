@@ -92,9 +92,9 @@ drawCharOnScreen buffer cpu x y = do
     let isMultiColor = (((memory cpu) ! 0xD016) .&. 16 > 0) && (fgColor .&. 8 > 0)
     
     if (isMultiColor) then do
-        foldM (\acc x -> drawCharLineMultiColor buffer cpu ch x bkColor bkColor2 bkColor3 fgColor screenX screenY) () [0..7]
+        forM_  [0..7] (\x -> drawCharLineMultiColor buffer cpu ch x bkColor bkColor2 bkColor3 fgColor screenX screenY) 
     else do
-        foldM (\acc x -> drawCharLine buffer cpu ch x bkColor fgColor screenX screenY) () [0..7]
+        forM_  [0..7] (\x -> drawCharLine buffer cpu ch x bkColor fgColor screenX screenY) 
         
     return ()
 
@@ -144,9 +144,9 @@ drawSprite buffer cpu index = do
         let extraColor2 = ((memory cpu) ! 0xD026)
 
         if (isMultiColor) then do
-            foldM (\acc x -> drawSpriteLineMultiColor buffer cpu x fgColor extraColor1 extraColor2 screenX (screenY+x) (spriteMemory+x*3)) () [0..20]
+            forM_  [0..20] (\x -> drawSpriteLineMultiColor buffer cpu x fgColor extraColor1 extraColor2 screenX (screenY+x) (spriteMemory+x*3)) 
         else do
-            foldM (\acc x -> drawSpriteLine buffer cpu x fgColor screenX (screenY+x) (spriteMemory+x*3)) () [0..20]
+            forM_  [0..20] (\x -> drawSpriteLine buffer cpu x fgColor screenX (screenY+x) (spriteMemory+x*3))
         return ()
     else do
         return ()
@@ -160,7 +160,7 @@ drawSpriteLine buffer cpu spriteIndex fgColor screenX screenY spriteMemory = do
     let memAddr = xyToIndex screenX screenY
 
     let addrValue = [(fst addr, fgColor) | addr <- zip [memAddr..memAddr+23] l, snd addr]
-    foldM (\acc x -> pokeByteOff buffer (fst x) (snd x)) () addrValue
+    forM_ addrValue (\x -> pokeByteOff buffer (fst x) (snd x))
     return ()
 
 drawSpriteLineMultiColor :: Ptr Byte -> CPUState -> Int -> Byte -> Byte -> Byte -> Int -> Int -> Int -> IO ()
@@ -184,7 +184,7 @@ drawSpriteLineMultiColor buffer cpu spriteIndex fgColor extraColor1 extraColor2 
     let memAddr = xyToIndex screenX screenY
 
     let addrValue = [(fst addr, snd addr) | addr <- zip [memAddr..memAddr+23] colors, snd addr /= 0xFF]
-    foldM (\acc x -> pokeByteOff buffer (fst x) (snd x)) () addrValue
+    forM_ addrValue(\x -> pokeByteOff buffer (fst x) (snd x))
     return ()
 
 --
@@ -207,7 +207,7 @@ drawVerticalBorder buffer cpu (x:xs) = do
     drawVerticalBorder buffer cpu xs
 
 --
--- Common
+-- Helper
 --
         
 vicBank cpu = 
@@ -234,29 +234,26 @@ pokeBytes p off (x:xs) = do
 
 mallocBytesFromList :: [Byte] -> IO (Ptr ())
 mallocBytesFromList xs = do
-    let bytes = Foreign.Marshal.Alloc.mallocBytes $ length xs
-    pb <- bytes
-    let pb2 = castPtr pb::Ptr Byte
-    pokeBytes pb2 0 xs
-    return pb
+    pBuffer <- Foreign.Marshal.Alloc.mallocBytes $ length xs
+    let pByteBuffer = castPtr pBuffer::Ptr Byte
+    pokeBytes pByteBuffer 0 xs
+    return pBuffer
     
-
 colorCodes = [
     0x00, 0x00, 0x00, 0x00,
     0xFF, 0xFF, 0xFF, 0x00,
-    0x00, 0x00, 0x88, 0x00,
-    0xEE, 0xFF, 0xAA, 0x00,
-    0xCC, 0x44, 0xCC, 0x00,
-    0x55, 0xCC, 0x00, 0x00,
-    0xAA, 0x00, 0x00, 0x00,
-    0x77, 0xEE, 0xEE, 0x00,
-    0x55, 0x88, 0xDD, 0x00,
-    0x00, 0x44, 0x66, 0x00,
-    0x77, 0x77, 0xFF, 0x00,
-    0x33, 0x33, 0x33, 0x00,
-    0x77, 0x77, 0x77, 0x00,
-    0x66, 0xFF, 0xAA, 0x00,
-    0xFF, 0x88, 0x00, 0x00,
-    0xBB, 0xBB, 0xBB, 0x00 ]                                                   
+    0x2B, 0x37, 0x68, 0x00,
+    0xB2, 0xA4, 0x70, 0x00,
+    0x86, 0x3D, 0x6F, 0x00,
+    0x43, 0x8D, 0x58, 0x00,
+    0x79, 0x28, 0x35, 0x00,
+    0x6F, 0xC7, 0xB8, 0x00,
+    0x25, 0x4F, 0x6F, 0x00,
+    0x00, 0x39, 0x43, 0x00,
+    0x59, 0x67, 0x9A, 0x00,
+    0x44, 0x44, 0x44, 0x00,
+    0x6C, 0x6C, 0x6C, 0x00,
+    0x84, 0xD2, 0x9A, 0x00,
+    0xB5, 0x5E, 0x6C, 0x00,
+    0x95, 0x95, 0x95, 0x00 ]               
 
-    

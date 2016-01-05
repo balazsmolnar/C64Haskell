@@ -24,12 +24,6 @@ type Byte = Word8
 
 scale = 2
 
-pokeBytes :: Storable a => Ptr b -> Int -> [a] -> IO ()
-pokeBytes p _ [] = return ()
-pokeBytes p off (x:xs) = do
-    pokeByteOff p off x
-    pokeBytes p (off+1) xs
-
 globalCPUState :: IORef CPUState
 globalCPUState =
         unsafePerformIO $ newIORef (initialCPUState 0)
