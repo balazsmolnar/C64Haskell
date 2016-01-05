@@ -83,23 +83,6 @@ cpuStop cpu = CPUState
                         (memory cpu) (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) True [] (characterROM cpu)
                         
 setBitValue :: Int -> Bool -> Byte -> Byte
---setBitValue flagBit flag v 
---    | flagBit==0 && flag = v .|. 1
---    | flagBit==0 && flag==False = v .&. 254
---    | flagBit==1 && flag = v .|. 2
---    | flagBit==1 && flag==False = v .&. 253
---    | flagBit==2 && flag = v .|. 4
---    | flagBit==2 && flag==False = v .&. 251
---    | flagBit==3 && flag = v .|. 8
---    | flagBit==3 && flag==False = v .&. 247
---    | flagBit==4 && flag = v .|. 16
---    | flagBit==4 && flag==False = v .&. 239
---    | flagBit==5 && flag = v .|. 32
---    | flagBit==5 && flag==False = v .&. 223
---    | flagBit==6 && flag = v .|. 64
---    | flagBit==6 && flag==False = v .&. 191
---    | flagBit==7 && flag = v .|. 128
---    | flagBit==7 && flag==False = v .&. 127
 setBitValue flagBit True v = v `setBit` flagBit
 setBitValue flagBit False v = v `clearBit` flagBit
 
@@ -156,27 +139,28 @@ branchHelper value offset cpu
     | offset `testBit` 7 = cpuNewPointer (pPointer cpu -256 + word8ToInt offset +2) cpu
     | otherwise = cpuNewPointer (pPointer cpu + word8ToInt offset+2) cpu
 
-fBRK cpu = cpuStop cpu
+fBRK :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fBRK cpu mode b1 b2 = cpuStop cpu
  
-fCLC :: CPUState -> CPUState
-fCLC =
-     clearFlag flagCBit
+fCLC :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fCLC cpu mode b1 b2 =
+     clearFlag flagCBit cpu
 
-fCLI :: CPUState -> CPUState
-fCLI =
-     clearFlag flagIBit
+fCLI :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fCLI cpu mode b1 b2 =
+     clearFlag flagIBit cpu
 
-fCLV :: CPUState -> CPUState
-fCLV =
-     clearFlag flagVBit
+fCLV :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fCLV cpu mode b1 b2 =
+     clearFlag flagVBit cpu
 
-fSEC :: CPUState -> CPUState
-fSEC =
-     setFlag flagCBit
+fSEC :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fSEC cpu mode b1 b2 =
+     setFlag flagCBit cpu
 
-fSEI :: CPUState -> CPUState
-fSEI =
-     setFlag flagIBit
+fSEI :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fSEI cpu mode b1 b2 =
+     setFlag flagIBit cpu
 
 fLDA :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
 fLDA cpu mode b1 b2 =
@@ -211,55 +195,55 @@ fSTY cpu mode b1 b2 =
      let addr = getAddress cpu mode b1 b2 in
      setMemory addr (regY cpu) cpu
 
-fTAY :: CPUState -> CPUState
-fTAY cpu =
+fTAY :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fTAY cpu mode b1 b2 =
     let value = regA cpu
         s = setZN value (regS cpu) in
     cpuNewRegY value $ cpuNewRegS s cpu 
 
-fTYA :: CPUState -> CPUState
-fTYA cpu =
+fTYA :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fTYA cpu mode b1 b2 =
     let value = regY cpu
         s = setZN value (regS cpu) in
     cpuNewRegA value $ cpuNewRegS s cpu 
 
-fTAX :: CPUState -> CPUState
-fTAX cpu =
+fTAX :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fTAX cpu mode b1 b2 =
     let value = regA cpu
         s = setZN value (regS cpu) in
     cpuNewRegX value $ cpuNewRegS s cpu 
 
-fTXA :: CPUState -> CPUState
-fTXA cpu =
+fTXA :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fTXA cpu mode b1 b2 =
     let value = regX cpu
         s = setZN value (regS cpu) in
     cpuNewRegA value $ cpuNewRegS s cpu 
 
-fTXS :: CPUState -> CPUState
-fTXS cpu =
+fTXS :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fTXS cpu mode b1 b2 =
     let value = regX cpu in
     cpuNewSP value cpu
 
-fTSX :: CPUState -> CPUState
-fTSX cpu =
+fTSX :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fTSX cpu mode b1 b2 =
     let value = stackPointer cpu
         s = setZN value (regS cpu) in
     cpuNewRegX value $ cpuNewRegS s cpu 
 
-fINY :: CPUState -> CPUState
-fINY cpu =
+fINY :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fINY cpu mode b1 b2 =
     let value = regY cpu + 1
         s = setZN value (regS cpu) in
     cpuNewRegY value $ cpuNewRegS s cpu 
 
-fDEY :: CPUState -> CPUState
-fDEY cpu =
+fDEY :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fDEY cpu mode b1 b2 =
     let value = regY cpu - 1
         s = setZN value (regS cpu) in
     cpuNewRegY value $ cpuNewRegS s cpu 
 
-fINX :: CPUState -> CPUState
-fINX cpu =
+fINX :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fINX cpu mode b1 b2 =
     let value = regX cpu + 1
         s = setZN value (regS cpu) in
     cpuNewRegX value $ cpuNewRegS s cpu 
@@ -278,8 +262,8 @@ fDEC cpu mode b1 b2 =
         s = setZN value (regS cpu) in
     setMemory addr value $ cpuNewRegS s cpu
 
-fDEX :: CPUState -> CPUState
-fDEX cpu =
+fDEX :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fDEX cpu mode b1 b2 =
     let value = regX cpu - 1
         s = setZN value (regS cpu) in
     cpuNewRegX value $ cpuNewRegS s cpu 
@@ -296,36 +280,36 @@ fCMP :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
 fCMP cpu mode b1 b2 =
     compareHelper (regA cpu) mode b1 b2 cpu
 
-fBNE :: CPUState ->  Byte -> CPUState
-fBNE cpu b1 =
+fBNE :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fBNE cpu mode b1 b2 =
     branchHelper (getFlag flagZBit cpu == False) b1 cpu
     
-fBEQ :: CPUState ->  Byte -> CPUState
-fBEQ cpu b1 =
+fBEQ :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fBEQ cpu mode b1 b2 =
     branchHelper (getFlag flagZBit cpu == True) b1 cpu
 
-fBCC :: CPUState ->  Byte -> CPUState
-fBCC cpu b1 =
+fBCC :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fBCC cpu mode b1 b2 =
     branchHelper (getFlag flagCBit cpu == False) b1 cpu
     
-fBCS :: CPUState ->  Byte -> CPUState
-fBCS cpu b1 =
+fBCS :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fBCS cpu mode b1 b2 =
     branchHelper (getFlag flagCBit cpu == True) b1 cpu
 
-fBPL :: CPUState ->  Byte -> CPUState
-fBPL cpu b1 =
+fBPL :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fBPL cpu mode b1 b2 =
     branchHelper (getFlag flagNBit cpu == False) b1 cpu
 
-fBMI :: CPUState ->  Byte -> CPUState
-fBMI cpu b1 =
+fBMI :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fBMI cpu mode b1 b2 =
     branchHelper (getFlag flagNBit cpu == True) b1 cpu
 
-fBVC :: CPUState ->  Byte -> CPUState
-fBVC cpu b1 =
+fBVC :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fBVC cpu mode b1 b2 =
     branchHelper (getFlag flagVBit cpu == False) b1 cpu
 
-fBVS :: CPUState ->  Byte -> CPUState
-fBVS cpu b1 =
+fBVS :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fBVS cpu mode b1 b2 =
     branchHelper (getFlag flagVBit cpu == True) b1 cpu
 
 fJMP :: CPUState -> AddressingMode -> Byte -> Byte -> CPUState
@@ -333,40 +317,40 @@ fJMP cpu mode b1 b2 =
     let addr = getAddress cpu mode b1 b2 in
     cpuNewPointer (addr-3) cpu 
 
-fJSR :: CPUState -> Byte -> Byte -> CPUState
-fJSR cpu b1 b2 =
+fJSR :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fJSR cpu mode b1 b2 =
     let addr = getAddress cpu Absolute b1 b2 in
     cpuNewPointer (addr-3) $ push (intToWord8(pPointer cpu+2 `mod` 256)) $ push (intToWord8((pPointer cpu+2) `div` 256)) cpu 
      
-fRTS :: CPUState -> CPUState
-fRTS cpu = 
+fRTS :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fRTS cpu mode b1 b2 =
     let low = peek cpu
         hi = peek $ pull cpu in
     cpuNewPointer ((word8ToInt hi)*256 + (word8ToInt low)) $ (pull $ pull cpu)
 
-fRTI :: CPUState -> CPUState
-fRTI cpu = 
+fRTI :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fRTI cpu mode b1 b2 =
     let s = peek cpu
         low = peek $ pull cpu
         hi = peek $ pull $ pull cpu in
     cpuNewRegS s $ cpuNewPointer ((word8ToInt hi)*256 + (word8ToInt low)-1) $ (pull $ pull $ pull cpu)
     
-fPHA :: CPUState -> CPUState
-fPHA cpu =
+fPHA :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fPHA cpu mode b1 b2 =
      push (regA cpu) cpu
 
-fPHP :: CPUState -> CPUState
-fPHP cpu =
+fPHP :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fPHP cpu mode b1 b2 =
      push (regS cpu) cpu
 
-fPLA :: CPUState -> CPUState
-fPLA cpu =
+fPLA :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fPLA cpu mode b1 b2 =
     let value = peek cpu
         s = setZN value (regS cpu) in
     cpuNewRegA value $ cpuNewRegS s (pull cpu)
 
-fPLP :: CPUState -> CPUState
-fPLP cpu =
+fPLP :: CPUState ->  AddressingMode -> Byte -> Byte -> CPUState
+fPLP cpu mode b1 b2 =
     let value = peek cpu in
     cpuNewRegS value $ pull cpu
     
@@ -501,39 +485,39 @@ step cpu =
             LDA -> fLDA cpu m byte1 byte2 
             LDX -> fLDX cpu m byte1 byte2 
             LDY -> fLDY cpu m byte1 byte2 
-            CLC -> fCLC cpu
-            CLI -> fCLI cpu
-            CLV -> fCLV cpu
-            SEC -> fSEC cpu
-            SEI -> fSEI cpu
+            CLC -> fCLC cpu m byte1 byte2 
+            CLI -> fCLI cpu m byte1 byte2 
+            CLV -> fCLV cpu m byte1 byte2 
+            SEC -> fSEC cpu m byte1 byte2 
+            SEI -> fSEI cpu m byte1 byte2 
             STA -> fSTA cpu m byte1 byte2
             STX -> fSTX cpu m byte1 byte2
             STY -> fSTY cpu m byte1 byte2
             CPX -> fCPX cpu m byte1 byte2
             CPY -> fCPY cpu m byte1 byte2
             CMP -> fCMP cpu m byte1 byte2
-            INX -> fINX cpu
-            INY -> fINY cpu
+            INX -> fINX cpu m byte1 byte2 
+            INY -> fINY cpu m byte1 byte2 
             INC -> fINC cpu m byte1 byte2
             DEC -> fDEC cpu m byte1 byte2
-            DEX -> fDEX cpu
-            DEY -> fDEY cpu
-            TAY -> fTAY cpu
-            TYA -> fTYA cpu
-            TAX -> fTAX cpu
-            TXA -> fTXA cpu
-            TSX -> fTSX cpu
-            TXS -> fTXS cpu
-            BRK -> fBRK cpu
-            BNE -> fBNE cpu byte1
-            BEQ -> fBEQ cpu byte1
-            BMI -> fBMI cpu byte1
-            BPL -> fBPL cpu byte1
-            BCC -> fBCC cpu byte1
-            BCS -> fBCS cpu byte1
-            BVC -> fBVC cpu byte1
-            BVS -> fBVS cpu byte1
-            JSR -> fJSR cpu byte1 byte2
+            DEX -> fDEX cpu m byte1 byte2 
+            DEY -> fDEY cpu m byte1 byte2 
+            TAY -> fTAY cpu m byte1 byte2 
+            TYA -> fTYA cpu m byte1 byte2 
+            TAX -> fTAX cpu m byte1 byte2 
+            TXA -> fTXA cpu m byte1 byte2 
+            TSX -> fTSX cpu m byte1 byte2 
+            TXS -> fTXS cpu m byte1 byte2 
+            BRK -> fBRK cpu m byte1 byte2 
+            BNE -> fBNE cpu m byte1 byte2 
+            BEQ -> fBEQ cpu m byte1 byte2 
+            BMI -> fBMI cpu m byte1 byte2 
+            BPL -> fBPL cpu m byte1 byte2 
+            BCC -> fBCC cpu m byte1 byte2 
+            BCS -> fBCS cpu m byte1 byte2 
+            BVC -> fBVC cpu m byte1 byte2 
+            BVS -> fBVS cpu m byte1 byte2 
+            JSR -> fJSR cpu m byte1 byte2 
             JMP -> fJMP cpu m byte1 byte2
             ASL -> fASL cpu m byte1 byte2
             LSR -> fLSR cpu m byte1 byte2
@@ -545,12 +529,12 @@ step cpu =
             EOR -> fEOR cpu m byte1 byte2
             ORA -> fORA cpu m byte1 byte2
             BIT -> fBIT cpu m byte1 byte2
-            PHA -> fPHA cpu
-            PLA -> fPLA cpu
-            PHP -> fPHP cpu
-            PLP -> fPLP cpu
-            RTS -> fRTS cpu
-            RTI -> fRTI cpu
+            PHA -> fPHA cpu m byte1 byte2 
+            PLA -> fPLA cpu m byte1 byte2 
+            PHP -> fPHP cpu m byte1 byte2 
+            PLP -> fPLP cpu m byte1 byte2 
+            RTS -> fRTS cpu m byte1 byte2 
+            RTI -> fRTI cpu m byte1 byte2 
             NOP -> cpu
             CLD -> cpu
             SED -> cpu -- not implemented
