@@ -612,7 +612,7 @@ unsafeWrite arr index newValue = do
     if index /= 0xDC00 then
         Data.Array.Base.unsafeWrite mutableArr index newValue
     else do
-        val <- getKeyMatrixByRow newValue
+        val <- getKeyMatrixState newValue
         Data.Array.Base.unsafeWrite mutableArr 0xDC01 val
     if (index == 0xDD00 || index == 0xD018 || index == 0xD011 || index == 0xD016) then do
         print $ (showHex index "" ) ++ ": " ++ show newValue
