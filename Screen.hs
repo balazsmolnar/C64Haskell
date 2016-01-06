@@ -90,25 +90,25 @@ drawCharOnScreen buffer cpu x y = do
     let fgColor = (memory cpu) ! (0xD800 + y*40 + x)
  
     let isMultiColor = (((memory cpu) ! 0xD016) .&. 16 > 0) && (fgColor .&. 8 > 0)
-    
+    let vBank = (vicBank cpu)
     if (isMultiColor) then do
-        forM_  [0..7] (\x -> drawCharLineMultiColor buffer cpu ch x bkColor bkColor2 bkColor3 fgColor screenX screenY) 
+        forM_  [0..7] (\x -> drawCharLineMultiColor buffer cpu ch x bkColor bkColor2 bkColor3 fgColor screenX screenY vBank) 
     else do
-        forM_  [0..7] (\x -> drawCharLine buffer cpu ch x bkColor fgColor screenX screenY) 
+        forM_  [0..7] (\x -> drawCharLine buffer cpu ch x bkColor fgColor screenX screenY vBank) 
         
     return ()
 
-drawCharLine buffer cpu ch line bkColor fgColor x y = do
+drawCharLine buffer cpu ch line bkColor fgColor x y vBank = do
     let addr = word8ToInt ch * 8 + line            
-    let b = charByteAtAddress cpu addr
+    let b = charByteAtAddress cpu addr vBank
     let l = [testBit b a | a <- [7,6..0]]
     let colors = map (\a -> if a==True then fgColor else bkColor) l
     let memAddr = xyToIndex x (y+line)
     pokeBytes buffer memAddr colors
 
-drawCharLineMultiColor buffer cpu ch line bkColor bkColor2 bkColor3 fgColor x y = do
+drawCharLineMultiColor buffer cpu ch line bkColor bkColor2 bkColor3 fgColor x y vBank = do
     let addr = word8ToInt ch * 8 + line            
-    let b = charByteAtAddress cpu addr
+    let b = charByteAtAddress cpu addr vBank
     let l = [(b `shiftR` a) .&. 3 | a <- [6, 6, 4, 4, 2, 2, 0, 0]]
     let colors = map (\a -> case a of
                                 0 -> bkColor
@@ -221,9 +221,9 @@ charScreenStartAddress cpu =
     let startOffset = word8ToInt(((memory cpu) ! 0xD018) `shiftR` 4) * 1024 in
     vicBank cpu + startOffset
     
-charByteAtAddress cpu relativeAddress
-    | (vicBank cpu == 0) && (startOffset == 4096) = (characterROM cpu) ! relativeAddress
-    | otherwise =  (memory cpu) ! (vicBank cpu + startOffset + relativeAddress)
+charByteAtAddress cpu relativeAddress vBank
+    | (vBank == 0) && (startOffset == 4096) = (characterROM cpu) ! relativeAddress
+    | otherwise =  (memory cpu) ! (vBank + startOffset + relativeAddress)
     where startOffset = word8ToInt((((memory cpu) ! 0xD018) `shiftR` 1) .&. 7) * 2048
 
 pokeBytes :: Storable a => Ptr b -> Int -> [a] -> IO ()
@@ -257,3 +257,4 @@ colorCodes = [
     0xB5, 0x5E, 0x6C, 0x00,
     0x95, 0x95, 0x95, 0x00 ]               
 
+xyToIndex x y = x+y*screenWidth

@@ -17,6 +17,7 @@ import Data.List
 import Data.Array
 import Data.IORef
 import C64
+import Instructions
 import Screen
 import System.IO.Unsafe
 
@@ -36,20 +37,15 @@ main =
 
 onPaint :: Graphics.Win32.RECT -> Graphics.Win32.HDC -> IO ()
 onPaint (_,_,w,h) hdc = do
---   Graphics.Win32.setBkMode hdc Graphics.Win32.tRANSPARENT
---   Graphics.Win32.setTextColor hdc (Graphics.Win32.rgb 255 255 0)
---   let y | h==10     = 0
---         | otherwise = ((h-10) `div` 2)
---       x | w==50     = 0
---         | otherwise = (w-50) `div` 2
---   Graphics.Win32.textOut hdc x y "Hello, world"
---   Graphics.Win32.lineTo hdc 100 199
    
    memDC <- Graphics.Win32.createCompatibleDC $ Just hdc
    bitmap <- createBitmap hdc
    Graphics.Win32.selectBitmap memDC bitmap
 
    Graphics.Win32.stretchBlt hdc 0 (fromIntegral (screenHeight)*scale) (fromIntegral screenWidth*scale) (fromIntegral (-screenHeight)*scale) memDC 0 0 (fromIntegral screenWidth) (fromIntegral screenHeight) Graphics.Win32.sRCCOPY
+   
+   Graphics.Win32.deleteDC memDC
+   Graphics.Win32.deleteBitmap bitmap
 
    return ()
 
@@ -81,25 +77,24 @@ wndProc lpps onPaint hwnd wmsg wParam lParam
 intToByte :: Int -> Byte
 intToByte x = fromInteger (toInteger x) :: Byte
 
-
+stepCpu cpu n = do
+    cpu2 <- stepN cpu n
+    cpu3 <- updateMemory cpu2
+    let cpu4 = interrupt cpu3    
+    return cpu4
+ 
 createBitmap :: Graphics.Win32.HDC -> IO Graphics.Win32.HBITMAP
 createBitmap dc = do 
     
-
     cpu <- readIORef globalCPUState
-    --print cpu
-    cpu2 <- stepN cpu 5000
-    cpu3 <- updateMemory cpu2
-    let cpu4 = interrupt cpu3
+    cpu2 <- stepCpu cpu 5000
+    cpu3 <- stepCpu cpu2 5000
+    cpu4 <- stepCpu cpu3 5000
+    cpu5 <- stepCpu cpu4 5000
     
-    cpu5 <- stepN cpu4 5000
-    cpu6 <- updateMemory cpu5
-    let cpu7 = interrupt cpu6
-
     --let screen = sort $ getScreenBytes cpu4
-
-    writeIORef globalCPUState cpu7
-    hb <- createScreenBitmap cpu dc
+    hb <- createScreenBitmap cpu5 dc
+    writeIORef globalCPUState cpu5
     if hb == nullPtr then error "hb is null"                    
     else return hb
      
