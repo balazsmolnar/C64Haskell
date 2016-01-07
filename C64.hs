@@ -13,6 +13,7 @@ import Data.ByteString as BS
 import qualified Data.Vector.Unboxed as V
 --import Test.QuickCheck
 import Data.Array.ST
+import Control.Monad
 import Control.Monad.ST
 import Numeric (showHex)
 import Base
@@ -22,14 +23,15 @@ import GHC.IOArray
 
 step :: CPUState ->  CPUState
 step cpu = 
-    let byte0 = (memory cpu) ! pPointer cpu 
-        byte1 = (memory cpu) ! (pPointer cpu+1)
-        byte2 = (memory cpu) ! (pPointer cpu+2)
-        instruction = instructionCodes ! byte0 
-        m = mode instruction
-        inst = iType instruction        
-        cpu2 = inst cpu m byte1 byte2 in
         cpuNewPointer (pPointer cpu2 + instructionLength m) cpu2 
+        where
+            byte0 = (memory cpu) ! pPointer cpu
+            byte1 = (memory cpu) ! (pPointer cpu+1)
+            byte2 = (memory cpu) ! (pPointer cpu+2)
+            instruction = instructionCodes ! byte0 
+            m = mode instruction
+            inst = iType instruction             
+            cpu2 = inst cpu m byte1 byte2
             
 --clcTest :: Byte -> Bool
 --clcTest s = 
@@ -91,29 +93,14 @@ unsafeWriteValues mutableArr ((addr, value):xs) = do
     unsafeWriteValues mutableArr  xs
     return ()
     
---unsafeWrite arr index newValue = do
-    --print $ show index ++ "  " ++ show newValue
---    mutableArr <- unsafeThawIOArray arr
---    if index /= 0xDC00 then
---        Data.Array.Base.unsafeWrite mutableArr index newValue
---    else do
---        val <- getKeyMatrixState newValue
---        Data.Array.Base.unsafeWrite mutableArr 0xDC01 val
---    if (index == 0xDD00 || index == 0xD018 || index == 0xD011 || index == 0xD016) then do
---        print $ (showHex index "" ) ++ ": " ++ show newValue
---        newArr <- unsafeFreezeIOArray mutableArr
---        return newArr
---    else do
---        newArr <- unsafeFreezeIOArray mutableArr
---        return newArr
-
+unsafeWrite arr [] = return arr
 unsafeWrite arr values = do
     mutableArr <- unsafeThawIOArray arr
     unsafeWriteValues mutableArr values        
     newArr <- unsafeFreezeIOArray mutableArr
     return newArr
     
-run cpu = do
+run cpu = do 
     --Prelude.putStrLn $ show (pPointer cpu) ++ " A:"++ show  (regA cpu) ++ " P:"++ show  (regS cpu)        
    --print cpu\
     --let a = pPointer cpu
@@ -127,20 +114,25 @@ run cpu = do
 
 stepN cpu 0 = return cpu
 stepN cpu n = do
-    --print cpu
-    newCpu <- updateMemory cpu
-    if  (regS cpu) == -1 then return newCpu            
-    else stepN (step newCpu) (n-1)
+    if  (regS cpu) == -1 then return cpu
+    else do
+        newCpu <- updateMemory (step cpu)
+        stepN (newCpu) (n-1)
+
+--stepN cpu n = do
+ --   if  (regS cpu) == -1 then return cpu
+--    else do
+--        foldM (\acc _ -> do 
+--                            newCpu <- updateMemory acc
+--                            let cpu2 = step newCpu
+--                            return cpu2)
+--                            cpu [1..n]
 
 keyPressed :: CPUState -> Byte -> IO CPUState
 keyPressed cpu ch = do
     if (ch == 93) then loadGame cpu -- ']'
-    else do
-         updateMemory cpu
---        let cpu2 =  setMemory 0x00c6 1 cpu0
---        let cpu3 =  setMemory 0x0277 ch cpu2
---        newCpu <- updateMemory cpu3
---        return newCpu
+    else return cpu
+         
 
 interrupt cpu
     | getFlag flagIBit cpu == True = cpu
@@ -148,24 +140,21 @@ interrupt cpu
 
     
 start = do
---    content <- loadMemory "d:\\Hackaton\\Phase1\\Prg\\1_first.prg"
-    --content <- loadMemory "d:\\Hackaton\\Phase1\\Prg\\2_loop.prg"
-    --content <- loadMemory "d:\\Hackaton\\Phase1\\Prg\\3_subroutine.prg"
-    --content <- loadMemory "d:\\Hackaton\\Phase2\\5_addressingmodes.prg"
-    --content <- loadMemory "d:\\Hackaton\\Phase2\\7_snake.prg"
     content <- loadRom    
     cpu <- run content
     return cpu
 
---createScreenMemory cpu = 
-
     
 updateMemory :: CPUState -> IO (CPUState)
 updateMemory cpu = do
-     let cm = [x | x <- changedMemory cpu, fst x > -1, snd x >= 0]
-     newMemory <- C64.unsafeWrite (memory cpu) cm
-     let newCpu = CPUState newMemory (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) [] (characterROM cpu)
-     return newCpu
+    let cm = [x | x <- changedMemory cpu, fst x > -1, snd x >= 0]
+    if L.length cm == 0 then return cpu
+    else do
+        let newCpu = CPUState (memory cpu) (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) [] (characterROM cpu)
+
+        newArr <- C64.unsafeWrite (memory newCpu) cm
+--    let newCpu = CPUState ((memory cpu) // cm) (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) [] (characterROM cpu)
+        return newCpu
     
          
 --updateMemory cpu = do

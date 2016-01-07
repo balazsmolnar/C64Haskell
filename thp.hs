@@ -86,7 +86,7 @@ stepCpu cpu n = do
 createBitmap :: Graphics.Win32.HDC -> IO Graphics.Win32.HBITMAP
 createBitmap dc = do 
     
-    cpu <- readIORef globalCPUState
+    cpu  <- readIORef globalCPUState 
     cpu2 <- stepCpu cpu 5000
     cpu3 <- stepCpu cpu2 5000
     cpu4 <- stepCpu cpu3 5000

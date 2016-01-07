@@ -733,7 +733,7 @@ fEOR cpu mode b1 b2 =
             cpuNewRegA value $ cpuNewRegS s cpu
 
 fUNDEF cpu mode b1 b2 = 
-        error "UNDEF command"
+        cpu
         
 fCLD cpu mode b1 b2 = 
         cpu
