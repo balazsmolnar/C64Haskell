@@ -1,21 +1,24 @@
 module MemoryModule where
 
---import Data.Array.Unboxed as MemArr
-import Data.Array as MemArr
+import Data.Array.Unboxed as MemArr
+import Data.Array --as MemArr
 import qualified Data.Array.IO
 import Data.Array.IO.Internals
 import Data.Array.Unsafe 
-import Data.Array.Base (unsafeThawIOArray, unsafeFreezeIOArray, unsafeWrite)
+import Control.Monad.ST
+import Data.Array.Base (unsafeThawIOArray, unsafeFreezeIOArray, unsafeFreezeSTUArray, unsafeWrite)
 
 import Base
-type Memory = MemArr.Array Int Byte
-type MutableMemory = Data.Array.IO.IOArray Int Byte
+type Memory = MemArr.UArray Int Byte
+type MutableMemory = Data.Array.IO.IOUArray Int Byte
 
 thaw :: Memory -> IO (MutableMemory)
-thaw = unsafeThawIOArray
+thaw = unsafeThawIOUArray
+
+unsafeFreezeIOUArray (IOUArray marr) = stToIO (unsafeFreezeSTUArray marr)
 
 freeze :: MutableMemory -> IO (Memory)
-freeze = unsafeFreezeIOArray
+freeze = unsafeFreezeIOUArray
 
 getByteFromMemory memory address = 
     memory MemArr.! address

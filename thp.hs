@@ -110,10 +110,10 @@ createBitmap dc = do
 --                            )
 --                            cpu [1..20000]
     
-    cpu2 <- stepCpu cpu memory 5000
-    cpu3 <- stepCpu cpu2 memory  5000
-    cpu4 <- stepCpu cpu3 memory 5000
-    cpu5 <- stepCpu cpu4 memory 5000
+    cpu5 <- stepCpu cpu memory 5000
+--    cpu3 <- stepCpu cpu2 memory  5000
+--    cpu4 <- stepCpu cpu3 memory 5000
+--    cpu5 <- stepCpu cpu4 memory 5000
     
     --let screen = sort $ getScreenBytes cpu4
     hb <- createScreenBitmap cpu5 memory characterROM dc
