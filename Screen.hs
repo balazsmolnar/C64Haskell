@@ -5,9 +5,9 @@ module Screen (createScreenBitmap) where
 
 import Data.List
 import Data.Bits
-import Data.Array
 import Base
 import Instructions
+import MemoryModule
 import C64
 
 import Foreign.Ptr
@@ -20,8 +20,8 @@ import Control.Monad
 -- Public
 --
 
-createScreenBitmap :: CPUState -> Graphics.Win32.HDC -> IO Graphics.Win32.HBITMAP
-createScreenBitmap cpu dc = do 
+createScreenBitmap :: CPUState -> Memory -> Memory -> Graphics.Win32.HDC -> IO Graphics.Win32.HBITMAP
+createScreenBitmap cpu memory characterROM dc = do 
     let size = fromIntegral screenWidth*screenHeight
     let headerBytes = [
             40, 0, 0, 0,                                                                      -- DWORD biSize; 
@@ -41,7 +41,7 @@ createScreenBitmap cpu dc = do
     let bytes = Foreign.Marshal.Alloc.mallocBytes size
     pb <- bytes
     let pb2 = castPtr pb::Ptr Byte
-    drawScreen pb2 cpu
+    drawScreen pb2 cpu memory characterROM
 
     hBitmap <- Graphics.Win32.createDIBitmap dc 
                 (castPtr pBitmapInfo ::Graphics.Win32.LPBITMAPINFOHEADER)
@@ -54,61 +54,61 @@ createScreenBitmap cpu dc = do
     return hBitmap
 
 
-drawScreen :: Ptr Byte -> CPUState -> IO ()
-drawScreen buffer cpu = do
-    drawHorizontalBorder buffer cpu [0..borderWidth-1]
-    drawHorizontalBorder buffer cpu [borderWidth+200..screenHeight-1]
-    drawVerticalBorder buffer cpu [borderWidth..screenHeight-borderWidth-1]
-    let isHiRes = ((memory cpu) ! 0xD011) .&. 32 > 0
+drawScreen :: Ptr Byte -> CPUState -> Memory -> Memory -> IO ()
+drawScreen buffer cpu memory characterROM = do
+    drawHorizontalBorder buffer memory [0..borderWidth-1]
+    drawHorizontalBorder buffer memory [borderWidth+200..screenHeight-1]
+    drawVerticalBorder buffer memory [borderWidth..screenHeight-borderWidth-1]
+    let isHiRes = (getByteFromMemory memory 0xD011) .&. 32 > 0
     if isHiRes then 
         error "Hi res mode turned on. Not implemented"
     else do
-        drawGraphicsInCharMode buffer cpu [(x,y) | x <- [0..39], y <- [0..24]]
-        drawSprites buffer cpu [0..7]            
+        drawGraphicsInCharMode buffer cpu memory characterROM [(x,y) | x <- [0..39], y <- [0..24]]
+        drawSprites buffer memory [0..7]            
         return ()
 
 --
 -- Draw characters
 --            
 
-drawGraphicsInCharMode :: Ptr Byte -> CPUState -> [(Int, Int)] -> IO ()
-drawGraphicsInCharMode buffer cpu [] = return ()
-drawGraphicsInCharMode buffer cpu (x:xs) = do
-    drawCharOnScreen buffer cpu (fst x) (snd x)
-    drawGraphicsInCharMode buffer cpu xs
+drawGraphicsInCharMode :: Ptr Byte -> CPUState -> Memory -> Memory -> [(Int, Int)] -> IO ()
+drawGraphicsInCharMode buffer cpu memory characterROM [] = return ()
+drawGraphicsInCharMode buffer cpu memory characterROM (x:xs) = do
+    drawCharOnScreen buffer cpu memory characterROM (fst x) (snd x)
+    drawGraphicsInCharMode buffer cpu memory characterROM xs
     return ()
 
-drawCharOnScreen :: Ptr Byte -> CPUState -> Int -> Int -> IO ()
-drawCharOnScreen buffer cpu x y = do
+drawCharOnScreen :: Ptr Byte -> CPUState -> Memory -> Memory -> Int -> Int -> IO ()
+drawCharOnScreen buffer cpu memory characterROM x y = do
     let screenX = x*8 + borderWidth
     let screenY = y*8 + borderWidth
-    let chAddress = charScreenStartAddress cpu + y*40 + x
-    let ch = (memory cpu) ! chAddress
-    let bkColor = (memory cpu) ! 0xD021
-    let bkColor2 = (memory cpu) ! 0xD022
-    let bkColor3 = (memory cpu) ! 0xD023
-    let fgColor = (memory cpu) ! (0xD800 + y*40 + x)
+    let chAddress = charScreenStartAddress memory + y*40 + x
+    let ch = getByteFromMemory memory chAddress
+    let bkColor = getByteFromMemory memory 0xD021
+    let bkColor2 = getByteFromMemory memory 0xD022
+    let bkColor3 = getByteFromMemory memory 0xD023
+    let fgColor = getByteFromMemory memory (0xD800 + y*40 + x)
  
-    let isMultiColor = (((memory cpu) ! 0xD016) .&. 16 > 0) && (fgColor .&. 8 > 0)
-    let vBank = (vicBank cpu)
+    let isMultiColor = ((getByteFromMemory memory 0xD016) .&. 16 > 0) && (fgColor .&. 8 > 0)
+    let vBank = (vicBank memory)
     if (isMultiColor) then do
-        forM_  [0..7] (\x -> drawCharLineMultiColor buffer cpu ch x bkColor bkColor2 bkColor3 fgColor screenX screenY vBank) 
+        forM_  [0..7] (\x -> drawCharLineMultiColor buffer cpu memory characterROM ch x bkColor bkColor2 bkColor3 fgColor screenX screenY vBank) 
     else do
-        forM_  [0..7] (\x -> drawCharLine buffer cpu ch x bkColor fgColor screenX screenY vBank) 
+        forM_  [0..7] (\x -> drawCharLine buffer cpu memory characterROM ch x bkColor fgColor screenX screenY vBank) 
         
     return ()
 
-drawCharLine buffer cpu ch line bkColor fgColor x y vBank = do
+drawCharLine buffer cpu memory characterROM ch line bkColor fgColor x y vBank = do
     let addr = word8ToInt ch * 8 + line            
-    let b = charByteAtAddress cpu addr vBank
+    let b = charByteAtAddress cpu memory characterROM addr vBank
     let l = [testBit b a | a <- [7,6..0]]
     let colors = map (\a -> if a==True then fgColor else bkColor) l
     let memAddr = xyToIndex x (y+line)
     pokeBytes buffer memAddr colors
 
-drawCharLineMultiColor buffer cpu ch line bkColor bkColor2 bkColor3 fgColor x y vBank = do
+drawCharLineMultiColor buffer cpu  memory characterROM ch line bkColor bkColor2 bkColor3 fgColor x y vBank = do
     let addr = word8ToInt ch * 8 + line            
-    let b = charByteAtAddress cpu addr vBank
+    let b = charByteAtAddress cpu  memory characterROM addr vBank
     let l = [(b `shiftR` a) .&. 3 | a <- [6, 6, 4, 4, 2, 2, 0, 0]]
     let colors = map (\a -> case a of
                                 0 -> bkColor
@@ -123,39 +123,39 @@ drawCharLineMultiColor buffer cpu ch line bkColor bkColor2 bkColor3 fgColor x y 
 -- Draw sprites
 --            
         
-drawSprites :: Ptr Byte -> CPUState -> [Int] -> IO ()
-drawSprites buffer cpu [] = return ()
-drawSprites buffer cpu (x:xs) = do
-    drawSprite buffer cpu x
-    drawSprites buffer cpu xs
+drawSprites :: Ptr Byte -> Memory -> [Int] -> IO ()
+drawSprites buffer memory [] = return ()
+drawSprites buffer memory (x:xs) = do
+    drawSprite buffer memory x
+    drawSprites buffer memory xs
     return ()
 
-drawSprite :: Ptr Byte -> CPUState -> Int -> IO ()
-drawSprite buffer cpu index = do
+drawSprite :: Ptr Byte -> Memory -> Int -> IO ()
+drawSprite buffer memory index = do
 
-    let enabled = ((memory cpu) ! 0xD015) `testBit` index
+    let enabled = (getByteFromMemory memory 0xD015) `testBit` index
     if enabled then do
-        let screenX = word8ToInt ((memory cpu) ! (0xD000+index*2)) + borderWidth - 24 + if ((memory cpu) ! 0xD010) `testBit` index  then 256 else 0
-        let screenY = word8ToInt ((memory cpu) ! (0xD001+index*2)) + borderWidth - 50
-        let spriteMemory = word8ToInt ((memory cpu) ! (index + 1016 + charScreenStartAddress cpu)) * 64 + vicBank cpu
-        let fgColor = ((memory cpu) ! (0xD027+index)) .&. 0x0F
-        let isMultiColor = ((memory cpu) ! 0xD01C) `testBit` index
-        let extraColor1 = ((memory cpu) ! 0xD025)
-        let extraColor2 = ((memory cpu) ! 0xD026)
+        let screenX = word8ToInt (getByteFromMemory memory (0xD000+index*2)) + borderWidth - 24 + if (getByteFromMemory memory 0xD010) `testBit` index  then 256 else 0
+        let screenY = word8ToInt (getByteFromMemory memory (0xD001+index*2)) + borderWidth - 50
+        let spriteMemory = word8ToInt (getByteFromMemory memory (index + 1016 + charScreenStartAddress memory)) * 64 + vicBank memory
+        let fgColor = (getByteFromMemory memory (0xD027+index)) .&. 0x0F
+        let isMultiColor = (getByteFromMemory memory 0xD01C) `testBit` index
+        let extraColor1 = (getByteFromMemory memory 0xD025)
+        let extraColor2 = (getByteFromMemory memory 0xD026)
 
         if (isMultiColor) then do
-            forM_  [0..20] (\x -> drawSpriteLineMultiColor buffer cpu x fgColor extraColor1 extraColor2 screenX (screenY+x) (spriteMemory+x*3)) 
+            forM_  [0..20] (\x -> drawSpriteLineMultiColor buffer memory x fgColor extraColor1 extraColor2 screenX (screenY+x) (spriteMemory+x*3)) 
         else do
-            forM_  [0..20] (\x -> drawSpriteLine buffer cpu x fgColor screenX (screenY+x) (spriteMemory+x*3))
+            forM_  [0..20] (\x -> drawSpriteLine buffer memory x fgColor screenX (screenY+x) (spriteMemory+x*3))
         return ()
     else do
         return ()
 
-drawSpriteLine :: Ptr Byte -> CPUState -> Int -> Byte -> Int -> Int -> Int -> IO ()
-drawSpriteLine buffer cpu spriteIndex fgColor screenX screenY spriteMemory = do
-    let spriteByte1 = (memory cpu) ! spriteMemory
-    let spriteByte2 = (memory cpu) ! (spriteMemory+1)
-    let spriteByte3 = (memory cpu) ! (spriteMemory+2)
+drawSpriteLine :: Ptr Byte -> Memory -> Int -> Byte -> Int -> Int -> Int -> IO ()
+drawSpriteLine buffer memory spriteIndex fgColor screenX screenY spriteMemory = do
+    let spriteByte1 = getByteFromMemory memory spriteMemory
+    let spriteByte2 = getByteFromMemory memory (spriteMemory+1)
+    let spriteByte3 = getByteFromMemory memory (spriteMemory+2)
     let l = [spriteByte1 `testBit` a | a <- [7,6..0]] ++ [spriteByte2 `testBit` a | a <- [7,6..0]] ++ [spriteByte3 `testBit` a | a <- [7,6..0]]
     let memAddr = xyToIndex screenX screenY
 
@@ -163,12 +163,12 @@ drawSpriteLine buffer cpu spriteIndex fgColor screenX screenY spriteMemory = do
     forM_ addrValue (\x -> pokeByteOff buffer (fst x) (snd x))
     return ()
 
-drawSpriteLineMultiColor :: Ptr Byte -> CPUState -> Int -> Byte -> Byte -> Byte -> Int -> Int -> Int -> IO ()
-drawSpriteLineMultiColor buffer cpu spriteIndex fgColor extraColor1 extraColor2 screenX screenY spriteMemory = do
+drawSpriteLineMultiColor :: Ptr Byte -> Memory -> Int -> Byte -> Byte -> Byte -> Int -> Int -> Int -> IO ()
+drawSpriteLineMultiColor buffer memory spriteIndex fgColor extraColor1 extraColor2 screenX screenY spriteMemory = do
 
-    let spriteByte1 = (memory cpu) ! spriteMemory
-    let spriteByte2 = (memory cpu) ! (spriteMemory+1)
-    let spriteByte3 = (memory cpu) ! (spriteMemory+2)
+    let spriteByte1 = getByteFromMemory memory spriteMemory
+    let spriteByte2 = getByteFromMemory memory (spriteMemory+1)
+    let spriteByte3 = getByteFromMemory memory (spriteMemory+2)
     
     let l = [(spriteByte1 `shiftR` a) .&. 3 | a <- [6, 6, 4, 4, 2, 2, 0, 0]] ++ 
             [(spriteByte2 `shiftR` a) .&. 3 | a <- [6, 6, 4, 4, 2, 2, 0, 0]] ++ 
@@ -191,40 +191,42 @@ drawSpriteLineMultiColor buffer cpu spriteIndex fgColor extraColor1 extraColor2 
 -- Border
 --
     
-drawHorizontalBorder :: Ptr Byte -> CPUState -> [Int] -> IO ()
-drawHorizontalBorder buffer cpu [] = return ()
-drawHorizontalBorder buffer cpu (x:xs) = do
-    let color = (memory cpu) ! 0xD020
+drawHorizontalBorder :: Ptr Byte -> Memory -> [Int] -> IO ()
+drawHorizontalBorder buffer memory [] = return ()
+drawHorizontalBorder buffer memory (x:xs) = do
+    let color = getByteFromMemory memory 0xD020
     pokeBytes buffer (xyToIndex 0 x) (take screenWidth $ repeat color)
-    drawHorizontalBorder buffer cpu xs
+    drawHorizontalBorder buffer memory xs
 
-drawVerticalBorder :: Ptr Byte -> CPUState -> [Int] -> IO ()
-drawVerticalBorder buffer cpu [] = return ()
-drawVerticalBorder buffer cpu (x:xs) = do
-    let color = (memory cpu) ! 0xD020
+drawVerticalBorder :: Ptr Byte -> Memory -> [Int] -> IO ()
+drawVerticalBorder buffer memory [] = return ()
+drawVerticalBorder buffer memory (x:xs) = do
+    let color = getByteFromMemory memory 0xD020
     pokeBytes buffer (xyToIndex 0 x) (take borderWidth $ repeat color)
     pokeBytes buffer (xyToIndex (screenWidth-borderWidth-1) x) (take borderWidth $ repeat color)
-    drawVerticalBorder buffer cpu xs
+    drawVerticalBorder buffer memory xs
 
 --
 -- Helper
 --
         
-vicBank cpu = 
-    case ((memory cpu) ! 0xDD00) .&. 0x03 of
+vicBank memory = 
+    case (getByteFromMemory memory 0xDD00) .&. 0x03 of
         0 -> 0xC000
         1 -> 0x8000
         2 -> 0x4000
         3 -> 0x0000
-        
-charScreenStartAddress cpu = 
-    let startOffset = word8ToInt(((memory cpu) ! 0xD018) `shiftR` 4) * 1024 in
-    vicBank cpu + startOffset
+
+charScreenStartAddress :: Memory -> Int
+charScreenStartAddress memory = 
+    let startOffset = word8ToInt((getByteFromMemory memory 0xD018) `shiftR` 4) * 1024 in
+    vicBank memory + startOffset
     
-charByteAtAddress cpu relativeAddress vBank
-    | (vBank == 0) && (startOffset == 4096) = (characterROM cpu) ! relativeAddress
-    | otherwise =  (memory cpu) ! (vBank + startOffset + relativeAddress)
-    where startOffset = word8ToInt((((memory cpu) ! 0xD018) `shiftR` 1) .&. 7) * 2048
+charByteAtAddress :: CPUState -> Memory -> Memory -> Int -> Int -> Byte
+charByteAtAddress cpu memory characterROM relativeAddress vBank
+    | (vBank == 0) && (startOffset == 4096) = getByteFromMemory characterROM relativeAddress
+    | otherwise =  getByteFromMemory memory (vBank + startOffset + relativeAddress)
+    where startOffset = word8ToInt(((getByteFromMemory memory 0xD018) `shiftR` 1) .&. 7) * 2048
 
 pokeBytes :: Storable a => Ptr b -> Int -> [a] -> IO ()
 pokeBytes p _ [] = return ()
