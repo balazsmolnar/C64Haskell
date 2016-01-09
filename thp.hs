@@ -60,12 +60,12 @@ onPaint (_,_,w,h) hdc = do
    return ()
 
 wndProc :: Graphics.Win32.LPPAINTSTRUCT
-	-> (Graphics.Win32.RECT -> Graphics.Win32.HDC -> IO ()) -- on paint action
+    -> (Graphics.Win32.RECT -> Graphics.Win32.HDC -> IO ()) -- on paint action
         -> Graphics.Win32.HWND
         -> Graphics.Win32.WindowMessage
-	-> Graphics.Win32.WPARAM
-	-> Graphics.Win32.LPARAM
-	-> IO Graphics.Win32.LRESULT
+    -> Graphics.Win32.WPARAM
+    -> Graphics.Win32.LPARAM
+    -> IO Graphics.Win32.LRESULT
 wndProc lpps onPaint hwnd wmsg wParam lParam
  | wmsg == Graphics.Win32.wM_DESTROY = do
      Graphics.Win32.sendMessage hwnd Graphics.Win32.wM_QUIT 1 0
@@ -88,11 +88,6 @@ wndProc lpps onPaint hwnd wmsg wParam lParam
 intToByte :: Int -> Byte
 intToByte x = fromInteger (toInteger x) :: Byte
 
-stepCpu cpu memory n = do
-    cpu2 <- stepN cpu memory n
-    cpu3 <- updateMemory cpu2 memory
-    return cpu3
- 
 createBitmap :: Graphics.Win32.HDC -> IO Graphics.Win32.HBITMAP
 createBitmap dc = do 
     
@@ -100,24 +95,10 @@ createBitmap dc = do
     memory  <- readIORef globalMemory
     characterROM <- readIORef globalCharacterROM
 
---    cpu5 <- foldM (\acc _ -> do 
-                            --print $ show (pPointer cpu)
-                            --print $ show (getByteFromMemory memory (pPointer cpu))
---                            newCpu <- seq (acc, memory) updateMemory acc memory
---                            let cpu2 = seq (newCpu, memory) step newCpu memory
---                            newCpu2 <- seq (acc, memory) updateMemory cpu2 memory
---                            return newCpu2
---                            )
---                            cpu [1..20000]
+    cpu2 <- stepN cpu memory 2000
     
-    cpu5 <- stepCpu cpu memory 2000
---    cpu3 <- stepCpu cpu2 memory  5000
---    cpu4 <- stepCpu cpu3 memory 5000
---    cpu5 <- stepCpu cpu4 memory 5000
-    
-    --let screen = sort $ getScreenBytes cpu4
-    hb <- createScreenBitmap cpu5 memory characterROM dc
-    writeIORef globalCPUState cpu5
+    hb <- createScreenBitmap cpu2 memory characterROM dc
+    writeIORef globalCPUState cpu2
     if hb == nullPtr then error "hb is null"                    
     else return hb
      
@@ -129,26 +110,25 @@ createWindow screenWidth screenHeight wndProc = do
   bgBrush      <- Graphics.Win32.createSolidBrush (Graphics.Win32.rgb 0 0 255)
   mainInstance <- getModuleHandle Nothing
   Graphics.Win32.registerClass
-  	  ( Graphics.Win32.cS_VREDRAW + Graphics.Win32.cS_HREDRAW
-	  , mainInstance
-	  , Just icon
-	  , Just cursor
-	  , Nothing --Just bgBrush
-	  , Nothing
-	  , winClass
-	  )
+        ( Graphics.Win32.cS_VREDRAW + Graphics.Win32.cS_HREDRAW
+        , mainInstance  
+        , Just icon
+        , Just cursor
+        , Nothing --Just bgBrush
+        , Nothing
+        , winClass  
+        )
   w <- Graphics.Win32.createWindow
-  		 winClass
-		 "Hello, World example"
-		 Graphics.Win32.wS_OVERLAPPEDWINDOW
-		 Nothing Nothing -- leave it to the shell to decide the position
-		 		 -- at where to put the window initially
-                 (Just screenWidth)
-		 (Just screenHeight)
-		 Nothing      -- no parent, i.e, root window is the parent.
-		 Nothing      -- no menu handle
-		 mainInstance
-		 wndProc
+        winClass
+        "C64 Emulator (Haskell version)"
+        Graphics.Win32.wS_OVERLAPPEDWINDOW
+        Nothing Nothing -- leave it to the shell to decide the position
+        (Just screenWidth)
+        (Just screenHeight)
+        Nothing      -- no parent, i.e, root window is the parent.
+        Nothing      -- no menu handle
+        mainInstance
+        wndProc
   memory <- readIORef globalMemory
   characterROM <- readIORef globalCharacterROM
   cpu <- loadRom memory characterROM
@@ -163,9 +143,9 @@ messagePump :: Graphics.Win32.HWND -> IO ()
 messagePump hwnd = Graphics.Win32.allocaMessage $ \ msg ->
   let pump = do
         Graphics.Win32.getMessage msg (Just hwnd)
-	Graphics.Win32.translateMessage msg
-	Graphics.Win32.dispatchMessage msg
-	pump
+        Graphics.Win32.translateMessage msg
+        Graphics.Win32.dispatchMessage msg
+        pump
   in pump
 
 paintWith :: Graphics.Win32.LPPAINTSTRUCT -> Graphics.Win32.HWND -> (Graphics.Win32.HDC -> IO a) -> IO a

@@ -45,17 +45,6 @@ stepN cpu memory n = do
         newCpu <- updateMemory cpu2 memory
         seq (newCpu,memory) (stepN newCpu memory (n-1))
 
---stepN cpu memory n = do
---   if  (regS cpu) == -1 then return cpu
---    else do
---        foldM (\acc _ -> do 
---                            newCpu <- seq (acc, memory) updateMemory acc memory
---                            let cpu2 = seq (newCpu, memory) step newCpu memory
---                            newCpu2 <- seq (acc, memory) updateMemory cpu2 memory
---                            return newCpu2
---                            )
---                            cpu [1..n]
-
 keyPressed :: CPUState -> Memory -> Byte -> IO CPUState
 keyPressed cpu memory ch = do
     if (ch == 93) then loadHunchback cpu memory -- ']'
@@ -68,7 +57,6 @@ updateMemory cpu memory = do
     if L.length cm == 0 then return cpu
     else do
         let newCpu = CPUState (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) [] (counter cpu)
-        --print $ show cm
         if fst (cm !! 0) /= 0xDC00 then do   
             writeMemory memory cm
         else do
@@ -77,15 +65,6 @@ updateMemory cpu memory = do
 
         return newCpu
     
-         
---updateMemory cpu = do
---     print (changedMemory cpu)
---     if (changedMemory cpu) == Nothing then return cpu
---     else do
---        newMemory <- Main.unsafeWrite (memory cpu) (fromJust (changedMemory cpu)) (changedMemoryValue cpu)
-        --   $ newMemory ! (fromJust (changedMemory cpu))
---        let newCpu = CPUState newMemory (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) (changedMemoryValue cpu)
---        return newCpu
 
 borderWidth = 20
 screenWidth :: Int
