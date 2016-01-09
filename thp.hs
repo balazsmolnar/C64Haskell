@@ -21,6 +21,7 @@ import Instructions
 import Screen
 import System.IO.Unsafe
 import Control.Monad 
+import File
 
 type Byte = Word8
 

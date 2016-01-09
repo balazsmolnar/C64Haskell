@@ -3,13 +3,13 @@
 --
 module Screen (createScreenBitmap) where
 
-import Data.List
-import Data.Bits
 import Base
 import Instructions
 import MemoryModule
 import C64
 
+import Data.List
+import Data.Bits
 import Foreign.Ptr
 import Foreign.Storable
 import qualified Foreign.Marshal.Alloc

@@ -8,14 +8,16 @@ import Data.Binary
 import Data.Bits
 import Data.Char    
 import Data.Maybe
-import Data.ByteString as BS
 import Control.Monad
 import Control.Monad.ST
 import Numeric (showHex)
+
+
 import Base
 import Instructions
 import MemoryModule
 import Keyboard
+import File
 
 step :: CPUState -> Memory -> CPUState
 step cpu memory = 
@@ -33,37 +35,7 @@ step cpu memory =
 --clcTest s = 
 --        let cpu = CPUState (array (0, 0xFFFF) [(i, 0::Byte) | i <- [0..0xFFFF]]) 0 0 0 s 0xFF 0 False []  (array (0, 0x0400) [(i, 0::Byte) | i <- [0..0x0400]]) in
 --        not $ getFlag flagCBit (fCLC cpu)
-        
-fileToByteList :: String -> IO [Byte]
-fileToByteList path = do
-    contents <- BS.readFile path
-    return $ unpack contents
-    
-loadRom memory characterROM = do
-    let path = "d:\\Hackaton\\Phase3\\64c.251913-01.bin"
-    let charPath = "d:\\temp\\Haskell\\C64\\characters.901225-01.bin"
-    content <- fileToByteList path
-    charContent <- fileToByteList charPath
-    let charROM = charContent ++ (L.map (255-) charContent)
-    let basic_address = 0xA000   
-    let kernal_address = 0xE000
-
-    writeMemoryFromAddress memory basic_address (L.take 0x2000 content)
-    writeMemoryFromAddress memory kernal_address (L.take 0x2000 $ L.drop 0x2000 content) 
-
-    writeMemoryFromAddress characterROM 0 charROM
-    print $ "hhhhhhhh  " ++ show (getByteFromMemory memory kernal_address)
-    return $ CPUState 0 0 0 0 0xFF 0xFCE2 False [] 0
-
-loadGame :: CPUState -> Memory -> IO (CPUState)
-loadGame cpu memory = do
-    print "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    content <- fileToByteList "c:\\temp\\MI\\hunchback.prg"
-    --content <- fileToByteList "c:\\temp\\MI\\pitstop ii.prg"
-    let address = word8ToInt (content !! 0) + 256*word8ToInt (content !! 1)   
-    writeMemoryFromAddress memory address (L.drop 2 content)
-    let newCpu = CPUState (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) [] 0
-    return newCpu
+                
     
 stepN cpu memory 0 = return cpu
 stepN cpu memory n = do
@@ -86,7 +58,7 @@ stepN cpu memory n = do
 
 keyPressed :: CPUState -> Memory -> Byte -> IO CPUState
 keyPressed cpu memory ch = do
-    if (ch == 93) then loadGame cpu memory -- ']'
+    if (ch == 93) then loadHunchback cpu memory -- ']'
     else return cpu
              
     
