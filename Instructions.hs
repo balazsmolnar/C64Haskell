@@ -328,7 +328,7 @@ flagIBit = 2
 flagVBit = 6
 flagNBit = 7
 
-data CPUState = CPUState { regA :: Byte, regX :: Byte, regY :: Byte, regS :: Byte, stackPointer ::Byte, pPointer :: Int, stopped :: Bool, changedMemory :: [(Int, Byte)] }  
+data CPUState = CPUState { regA :: Byte, regX :: Byte, regY :: Byte, regS :: Byte, stackPointer ::Byte, pPointer :: Int, stopped :: Bool, changedMemory :: [(Int, Byte)], counter :: Int }  
 
 instance Show CPUState where
   show cpu = "A: " ++ (show $ regA cpu) ++ "  X: " ++ (show $ regX cpu) ++ "  Y: " ++ (show $ regY cpu) ++ "  P: " ++ (showHex  (pPointer cpu) "") ++ "  SP: " ++ (show $ stackPointer cpu) ++ 
@@ -336,35 +336,45 @@ instance Show CPUState where
                " V: " ++ (show $ regS cpu `testBit` flagVBit)  ++ " Stooped: " ++ (show $ stopped cpu)  
   
 initialCPUState pointer = CPUState 
-                        0 0 0 0 0xFF pointer False [] 
+                        0 0 0 0 0xFF pointer False [] 0
 
 cpuNewPointer pointer cpu = CPUState 
-                        (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) pointer (stopped cpu) (changedMemory cpu)
+                        (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) pointer (stopped cpu) (changedMemory cpu) (counter cpu)
 
 cpuNewMemory changedMemoryAddress value cpu = CPUState 
-                        (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) ((changedMemoryAddress, value):(changedMemory cpu))
+                        (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) ((changedMemoryAddress, value):(changedMemory cpu)) (counter cpu)
 
 cpuNewRegA :: Byte -> CPUState -> CPUState                        
 cpuNewRegA regA cpu = CPUState 
-                        regA (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu)
+                        regA (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) (counter cpu)
 
 cpuNewRegX :: Byte -> CPUState -> CPUState                        
 cpuNewRegX regX cpu = CPUState 
-                        (regA cpu) regX (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu)
+                        (regA cpu) regX (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) (counter cpu)
 
 cpuNewRegY :: Byte -> CPUState -> CPUState                        
 cpuNewRegY regY cpu = CPUState 
-                        (regA cpu) (regX cpu) regY (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu)
+                        (regA cpu) (regX cpu) regY (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) (counter cpu)
 
 cpuNewRegS regS cpu = CPUState 
-                        (regA cpu) (regX cpu) (regY cpu) regS (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu)
+                        (regA cpu) (regX cpu) (regY cpu) regS (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) (counter cpu)
 
 cpuNewSP :: Byte -> CPUState -> CPUState                        
 cpuNewSP sp cpu = CPUState 
-                        (regA cpu) (regX cpu) (regY cpu) (regS cpu) sp (pPointer cpu) (stopped cpu) (changedMemory cpu)
+                        (regA cpu) (regX cpu) (regY cpu) (regS cpu) sp (pPointer cpu) (stopped cpu) (changedMemory cpu) (counter cpu)
                         
 cpuStop cpu = CPUState 
-                        (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) True []
+                        (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) True [] (counter cpu)
+
+cpuIncreaseCounter cpu = 
+                if (counter cpu) > interruptCount then interrupt $ CPUState (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) 0
+                else CPUState (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) ((counter cpu)+1)
+
+interruptCount = 5000 :: Int
+                        
+interrupt cpu
+    | getFlag flagIBit cpu == True = cpu
+    | otherwise = cpuNewPointer (0xFF48) $ push (regS cpu) $ push (intToWord8(pPointer cpu `mod` 256)) $ push (intToWord8((pPointer cpu) `div` 256)) cpu 
                         
 setBitValue :: Int -> Bool -> Byte -> Byte
 setBitValue flagBit True v = v `setBit` flagBit

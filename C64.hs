@@ -4,19 +4,11 @@ import Data.List as L
 import Data.Array
 import qualified Data.Array.IO
 
-import Data.Array.Unsafe 
-import Data.Array.Base (unsafeThawIOArray, unsafeFreezeIOArray, unsafeWrite)
---import Data.Array.IO.Internals (unsafeThawIOUArray, unsafeFreezeIOUArray)
 import Data.Binary
 import Data.Bits
 import Data.Char    
 import Data.Maybe
 import Data.ByteString as BS
---import System.Console.ANSI
-import qualified Data.Vector.Unboxed as V
---import Test.QuickCheck
-import Data.Array.ST
-import qualified Data.Array.Unboxed
 import Control.Monad
 import Control.Monad.ST
 import Numeric (showHex)
@@ -24,11 +16,10 @@ import Base
 import Instructions
 import MemoryModule
 import Keyboard
-import GHC.IOArray
 
 step :: CPUState -> Memory -> CPUState
 step cpu memory = 
-        cpuNewPointer (pPointer cpu2 + instructionLength m) cpu2
+        cpuIncreaseCounter $ cpuNewPointer (pPointer cpu2 + instructionLength m) cpu2
         where
             byte0 = getByteFromMemory memory (pPointer cpu)
             byte1 = getByteFromMemory memory (pPointer cpu+1)
@@ -57,12 +48,12 @@ loadRom memory characterROM = do
     let basic_address = 0xA000   
     let kernal_address = 0xE000
 
-    unsafeWriteFromAddress memory basic_address (L.take 0x2000 content)
-    unsafeWriteFromAddress memory kernal_address (L.take 0x2000 $ L.drop 0x2000 content) 
+    writeMemoryFromAddress memory basic_address (L.take 0x2000 content)
+    writeMemoryFromAddress memory kernal_address (L.take 0x2000 $ L.drop 0x2000 content) 
 
-    unsafeWriteFromAddress characterROM 0 charROM
+    writeMemoryFromAddress characterROM 0 charROM
     print $ "hhhhhhhh  " ++ show (getByteFromMemory memory kernal_address)
-    return $ CPUState 0 0 0 0 0xFF 0xFCE2 False []
+    return $ CPUState 0 0 0 0 0xFF 0xFCE2 False [] 0
 
 loadGame :: CPUState -> Memory -> IO (CPUState)
 loadGame cpu memory = do
@@ -70,8 +61,8 @@ loadGame cpu memory = do
     content <- fileToByteList "c:\\temp\\MI\\hunchback.prg"
     --content <- fileToByteList "c:\\temp\\MI\\pitstop ii.prg"
     let address = word8ToInt (content !! 0) + 256*word8ToInt (content !! 1)   
-    unsafeWriteFromAddress memory address (L.tail $ L.tail content)
-    let newCpu = CPUState (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) []
+    writeMemoryFromAddress memory address (L.drop 2 content)
+    let newCpu = CPUState (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) [] 0
     return newCpu
     
 stepN cpu memory 0 = return cpu
@@ -97,25 +88,20 @@ keyPressed :: CPUState -> Memory -> Byte -> IO CPUState
 keyPressed cpu memory ch = do
     if (ch == 93) then loadGame cpu memory -- ']'
     else return cpu
-         
-
-interrupt cpu
-    | getFlag flagIBit cpu == True = cpu
-    | otherwise = cpuNewPointer (0xFF48) $ push (regS cpu) $ push (intToWord8(pPointer cpu `mod` 256)) $ push (intToWord8((pPointer cpu) `div` 256)) cpu 
-    
+             
     
 updateMemory :: CPUState -> Memory -> IO (CPUState)
 updateMemory cpu memory = do
     let cm = [x | x <- changedMemory cpu, fst x > -1, snd x >= 0]
     if L.length cm == 0 then return cpu
     else do
-        let newCpu = CPUState (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) []
+        let newCpu = CPUState (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) [] (counter cpu)
         --print $ show cm
         if fst (cm !! 0) /= 0xDC00 then do   
-            MemoryModule.unsafeWrite memory cm
+            writeMemory memory cm
         else do
             val <- getKeyMatrixState $ snd (cm !! 0)
-            MemoryModule.unsafeWrite memory [(0xDC01, val)]
+            writeMemory memory [(0xDC01, val)]
 
         return newCpu
     

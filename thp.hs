@@ -90,8 +90,7 @@ intToByte x = fromInteger (toInteger x) :: Byte
 stepCpu cpu memory n = do
     cpu2 <- stepN cpu memory n
     cpu3 <- updateMemory cpu2 memory
-    let cpu4 = interrupt cpu3    
-    return cpu4
+    return cpu3
  
 createBitmap :: Graphics.Win32.HDC -> IO Graphics.Win32.HBITMAP
 createBitmap dc = do 
@@ -110,7 +109,7 @@ createBitmap dc = do
 --                            )
 --                            cpu [1..20000]
     
-    cpu5 <- stepCpu cpu memory 5000
+    cpu5 <- stepCpu cpu memory 2000
 --    cpu3 <- stepCpu cpu2 memory  5000
 --    cpu4 <- stepCpu cpu3 memory 5000
 --    cpu5 <- stepCpu cpu4 memory 5000
