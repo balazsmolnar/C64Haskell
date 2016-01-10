@@ -1,12 +1,11 @@
 --
 -- Creates screen content from memory
 --
-module Screen (createScreenBitmap) where
+module Screen (createScreenBitmap, borderWidth, screenWidth, screenHeight) where
 
 import Base
 import Instructions
 import MemoryModule
-import C64
 
 import Data.List
 import Data.Bits
@@ -19,6 +18,12 @@ import Control.Monad
 --
 -- Public
 --
+
+borderWidth = 20
+screenWidth :: Int
+screenWidth = borderWidth*2 + 320
+screenHeight :: Int
+screenHeight = borderWidth*2 + 200
 
 createScreenBitmap :: CPUState -> Memory -> Memory -> Graphics.Win32.HDC -> IO Graphics.Win32.HBITMAP
 createScreenBitmap cpu memory characterROM dc = do 
