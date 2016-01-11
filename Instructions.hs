@@ -367,7 +367,7 @@ cpuStop cpu = CPUState
                         (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) True [] (counter cpu)
 
 cpuIncreaseCounter cpu = 
-                if (counter cpu) > interruptCount then interrupt $ CPUState (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) 0
+                if (counter cpu) >= interruptCount then interrupt $ CPUState (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) 0
                 else CPUState (regA cpu) (regX cpu) (regY cpu) (regS cpu) (stackPointer cpu) (pPointer cpu) (stopped cpu) (changedMemory cpu) ((counter cpu)+1)
 
 interruptCount = 5000 :: Int
