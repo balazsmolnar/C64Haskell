@@ -1,24 +1,25 @@
 module MemoryModule (Memory,
                      initMemory, 
+                     initMemoryWithValues,
                      getByteFromMemory, 
                      writeMemory, 
                      writeMemoryFromAddress) where
 
 import Data.Array.Unboxed as MemArr
-import Data.Array --as MemArr
+import Data.Array
 import qualified Data.Array.IO
 import Data.Array.IO.Internals
 import Data.Array.Unsafe 
-import Control.Monad.ST
+import Control.Monad.ST 
+import Data.Map
 import Data.Array.Base (unsafeThawIOArray, unsafeFreezeIOArray, unsafeFreezeSTUArray, unsafeWrite)
 
 import Base
-type Memory = MemArr.UArray Int Byte
-type MutableMemory = Data.Array.IO.IOUArray Int Byte
 
 --
 -- Public
 --
+type Memory = MemArr.UArray Int Byte
 
 getByteFromMemory memory address = 
     memory MemArr.! address
@@ -27,6 +28,11 @@ initMemory  :: Int -> Memory
 initMemory size = 
     MemArr.array (0, size) [(i, 0::Byte) | i <- [0..size]]
 
+initMemoryWithValues  :: Int -> [(Int, Byte)] -> Memory    
+initMemoryWithValues size values = 
+    MemArr.array (0, size) [(i, findWithDefault 0 i m) | i <- [0..size]]
+    where m = fromList values
+    
 writeMemory :: Memory -> [(Int,Byte)] -> IO (Memory)
 writeMemory memory [] = return memory
 writeMemory memory values = do
@@ -45,6 +51,8 @@ writeMemoryFromAddress memory  address values = do
 --
 -- Internal
 --
+
+type MutableMemory = Data.Array.IO.IOUArray Int Byte
 
 thaw :: Memory -> IO (MutableMemory)
 thaw = unsafeThawIOUArray

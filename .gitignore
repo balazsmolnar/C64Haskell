@@ -11,3 +11,7 @@
 /*.prof
 /x
 /thp.exe
+/*.exe
+/*.log
+/*.pdf
+/*.ps

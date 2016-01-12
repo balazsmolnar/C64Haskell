@@ -59,7 +59,79 @@ prop_sec value =
         let memory = initMemory 10
             cpu = setFlagExp flagCBit value (initialCPUState 0) in
         getFlag flagCBit (fSEC cpu memory Implied 0 0)
+
+--
+--  LDA
+--
         
+test_LDA_Immidiate = 
+    let memory = initMemoryWithValues 0xFFFF [(0x1234,5), (0x1235,6), (0x1236,5)]
+        cpu = (initialCPUState 0)
+        result = (fLDA cpu memory Immidiate 34 0) in
+    TestCase (assertEqual "test_LDA_Immidiate" 34  (regA result) )
+
+test_LDA_Absolute = 
+    let memory = initMemoryWithValues 0xFFFF [(0x1234,5), (0x1235,6), (0x1236,5)]
+        cpu = (initialCPUState 0)
+        result = (fLDA cpu memory Absolute 0x35 0x12) in
+    TestCase (assertEqual "test_LDA_Absolute" 6  (regA result) )
+
+test_LDA_AbsoluteX = 
+    let memory = initMemoryWithValues 0xFFFF [(0x1234,5), (0x1235,6), (0x1236,7)]
+        cpu = cpuNewRegX 2 (initialCPUState 0)
+        result = (fLDA cpu memory AbsoluteX 0x34 0x12) in
+    TestCase (assertEqual "test_LDA_AbsoluteX" 7  (regA result) )
+
+test_LDA_AbsoluteY = 
+    let memory = initMemoryWithValues 0xFFFF [(0x1234,5), (0x1235,6), (0x1236,7)]
+        cpu = cpuNewRegY 2 (initialCPUState 0)
+        result = (fLDA cpu memory AbsoluteY 0x34 0x12) in
+    TestCase (assertEqual "test_LDA_AbsoluteY" 7  (regA result) )
+
+test_LDA_ZeroPage = 
+    let memory = initMemoryWithValues 0xFFFF [(0x34,5), (0x35,6), (0x36,7)]
+        cpu = (initialCPUState 0)
+        result = (fLDA cpu memory ZeroPage 0x34 0) in
+    TestCase (assertEqual "test_LDA_ZeroPage" 5  (regA result) )
+
+test_LDA_ZeroPageX = 
+    let memory = initMemoryWithValues 0xFFFF [(0x34,0x34), (0x35,0x12), (0x1234,5), (0x1235,6), (0x1236,7)]
+        cpu = cpuNewRegX 1 (initialCPUState 0)
+        result = (fLDA cpu memory ZeroPageX 0x34 0) in
+    TestCase (assertEqual "test_LDA_ZeroPageX" 0x12  (regA result) )
+
+test_LDA_ZeroPageY = 
+    let memory = initMemoryWithValues 0xFFFF [(0x34,0x34), (0x35,0x12), (0x1234,5), (0x1235,6), (0x1236,7)]
+        cpu = cpuNewRegY 1 (initialCPUState 0)
+        result = (fLDA cpu memory ZeroPageY 0x34 0) in
+    TestCase (assertEqual "test_LDA_ZeroPageY" 0x12  (regA result) )
+
+--
+--  STA
+--
+
+test_STA_Absolute = 
+    let memory = initMemory 0xFFFF
+        cpu = cpuNewRegA 5 (initialCPUState 0)
+        result = (fSTA cpu memory Absolute 0x35 0x12) in
+    TestCase (assertEqual "test_STA_Absolute" (0x1235, 5)  (head $ changedMemory result) )
+
+test_STA_AbsoluteX = 
+    let memory = initMemory 0xFFFF
+        cpu = cpuNewRegX 2 $ cpuNewRegA 5 (initialCPUState 0)
+        result = (fSTA cpu memory AbsoluteX 0x35 0x12) in
+    TestCase (assertEqual "test_STA_AbsoluteX" (0x1237, 5)  (head $ changedMemory result) )
+    
+--
+--  JMP
+--
+
+test_JMP_Absolute = 
+    let memory = initMemory 0xFFFF
+        cpu =  (initialCPUState 0)
+        result = (fJMP cpu memory Absolute 0x35 0x12) in
+    TestCase (assertEqual "test_JMP_Absolute" (0x1235-3)  (pPointer result) )
+    
 tests = TestList
         [
             test_word8ToInt,
@@ -71,7 +143,17 @@ tests = TestList
             test_cpuNewRegS,
             test_IncreaseCounter_No_Interrupt,
             test_IncreaseCounter_Interrupt,
-            test_IncreaseCounter_Interrupt_Resets_Counter
+            test_IncreaseCounter_Interrupt_Resets_Counter,
+            test_LDA_Immidiate,
+            test_LDA_Absolute,
+            test_LDA_AbsoluteX,
+            test_LDA_AbsoluteY,
+            test_LDA_ZeroPage,
+            test_LDA_ZeroPageX,
+            test_LDA_ZeroPageY,
+            test_STA_Absolute,
+            test_STA_AbsoluteX,
+            test_JMP_Absolute
         ]
 
 return []
