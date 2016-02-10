@@ -26,13 +26,15 @@ import Keyboard
 import File
 import Screen
 
+scale = 3
+
 --
 -- main
 -- 
 main :: IO ()
 main =
   Graphics.Win32.allocaPAINTSTRUCT $ \ lpps -> do
-  hwnd <- createWindow (screenWidth*2+10) (screenHeight*2+30) (wndProc lpps onPaint)
+  hwnd <- createWindow (screenWidth*3+10) (screenHeight*3+30) (wndProc lpps onPaint)
   messagePump hwnd
   
 --
@@ -89,13 +91,7 @@ step cpu memory =
             m = mode instruction
             inst = iType instruction             
             cpu2 = seq (cpu,memory) (inst cpu memory m byte1 byte2)
-            
---clcTest :: Byte -> Bool
---clcTest s = 
---        let cpu = CPUState (array (0, 0xFFFF) [(i, 0::Byte) | i <- [0..0xFFFF]]) 0 0 0 s 0xFF 0 False []  (array (0, 0x0400) [(i, 0::Byte) | i <- [0..0x0400]]) in
---        not $ getFlag flagCBit (fCLC cpu)
                 
-    
 stepN cpu memory 0 = return cpu
 stepN cpu memory n = do
     if  (regS cpu) == -1 then return cpu
@@ -123,8 +119,6 @@ updateMemory cpu memory = do
             writeMemory memory [(0xDC01, val)]
 
         return newCpu
-
-scale = 2
 
 globalCPUState :: IORef CPUState
 globalCPUState =

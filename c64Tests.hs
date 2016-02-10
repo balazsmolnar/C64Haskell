@@ -16,6 +16,10 @@ test_word8ToInt =
 
 test_intToword8 = 
     TestCase (assertEqual "intToWord8 112" 112 (word8ToInt 112))
+    
+prop_word8ToInt_intToword8 :: Word8 -> Bool
+prop_word8ToInt_intToword8 value = 
+        (intToWord8 . word8ToInt) value == value
 
 test_cpuNewPointer = 
     TestCase (assertEqual "cpuNewPointer" 0x1234 (pPointer (cpuNewPointer 0x1234 (initialCPUState 0)))  )
@@ -107,6 +111,28 @@ test_LDA_ZeroPageY =
     TestCase (assertEqual "test_LDA_ZeroPageY" 0x12  (regA result) )
 
 --
+--  LDX
+--
+        
+test_LDX_Immidiate = 
+    let memory = initMemoryWithValues 0xFFFF [(0x1234,5), (0x1235,6), (0x1236,5)]
+        cpu = (initialCPUState 0)
+        result = (fLDX cpu memory Immidiate 34 0) in
+    TestCase (assertEqual "test_LDX_Immidiate" 34  (regX result) )
+
+test_LDX_Absolute = 
+    let memory = initMemoryWithValues 0xFFFF [(0x1234,5), (0x1235,6), (0x1236,5)]
+        cpu = (initialCPUState 0)
+        result = (fLDX cpu memory Absolute 0x35 0x12) in
+    TestCase (assertEqual "test_LDX_Absolute" 6  (regX result) )
+
+test_LDX_ZeroPage = 
+    let memory = initMemoryWithValues 0xFFFF [(0x34,5), (0x35,6), (0x36,7)]
+        cpu = (initialCPUState 0)
+        result = (fLDX cpu memory ZeroPage 0x34 0) in
+    TestCase (assertEqual "test_LDX_ZeroPage" 5  (regX result) )
+
+--
 --  STA
 --
 
@@ -121,7 +147,29 @@ test_STA_AbsoluteX =
         cpu = cpuNewRegX 2 $ cpuNewRegA 5 (initialCPUState 0)
         result = (fSTA cpu memory AbsoluteX 0x35 0x12) in
     TestCase (assertEqual "test_STA_AbsoluteX" (0x1237, 5)  (head $ changedMemory result) )
-    
+
+--
+-- INY
+--
+
+test_INY_5 = 
+     let memory = initMemory 10
+         cpu = cpuNewRegY 5(initialCPUState 0)
+         result = fINY cpu memory Implied 0x00 0x00 in
+     TestCase (assertEqual "test_INY_5" 6 (regY result) )
+
+test_INY_FF = 
+     let memory = initMemory 10
+         cpu = cpuNewRegY 0xFF(initialCPUState 0)
+         result = fINY cpu memory Implied 0x00 0x00 in
+     TestCase (assertEqual "test_INY_FF" 0 (regY result) )
+
+test_INY_FF_Zero_Flag = 
+     let memory = initMemory 10
+         cpu = cpuNewRegY 0xFF(initialCPUState 0)
+         result = fINY cpu memory Implied 0x00 0x00 in
+     TestCase (assertEqual "test_INY_FF_Zero_Flag" True (getFlag flagZBit result) )
+     
 --
 --  JMP
 --
@@ -151,9 +199,15 @@ tests = TestList
             test_LDA_ZeroPage,
             test_LDA_ZeroPageX,
             test_LDA_ZeroPageY,
+            test_LDX_Immidiate,
+            test_LDX_Absolute,
+            test_LDX_ZeroPage,
             test_STA_Absolute,
             test_STA_AbsoluteX,
-            test_JMP_Absolute
+            test_JMP_Absolute,
+            test_INY_5,
+            test_INY_FF,
+            test_INY_FF_Zero_Flag  
         ]
 
 return []

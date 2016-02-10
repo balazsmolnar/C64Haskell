@@ -10,6 +10,10 @@ import Data.Binary
 
 import Base
 
+--
+-- Public
+--
+
 getKeyMatrixState :: Byte -> IO Byte                  
 getKeyMatrixState value = do
                         result <- foldM (\acc x -> do 
@@ -24,6 +28,10 @@ getKeyMatrixState value = do
 toInt :: Integral a => a -> Int
 toInt = fromInteger . toInteger
 
+--
+-- Keyboard Matrix
+--
+
 notSupportedKey = 0
                   
 keyboardMatrix = M.fromList [(0, [toInt Graphics.Win32.vK_BACK, toInt Graphics.Win32.vK_RETURN, toInt Graphics.Win32.vK_RIGHT, toInt Graphics.Win32.vK_F7, toInt Graphics.Win32.vK_F1, toInt Graphics.Win32.vK_F3, toInt Graphics.Win32.vK_F5,toInt Graphics.Win32.vK_DOWN]),
@@ -32,7 +40,7 @@ keyboardMatrix = M.fromList [(0, [toInt Graphics.Win32.vK_BACK, toInt Graphics.W
                              (3, [fromEnum '7', fromEnum 'Y', fromEnum 'G', fromEnum '8', fromEnum 'B', fromEnum 'H', fromEnum 'U', fromEnum 'V']),
                              (4, [fromEnum '9', fromEnum 'I', fromEnum 'J', fromEnum '0', fromEnum 'M', fromEnum 'K', fromEnum 'O', fromEnum 'N']),
                              (5, [fromEnum '+', fromEnum 'P', fromEnum 'L', fromEnum '-', 0xBE, fromEnum ':', fromEnum '@', 0xBC]),
-                             (6, [notSupportedKey, fromEnum '*', fromEnum ';' ,toInt Graphics.Win32.vK_HOME, toInt Graphics.Win32.vK_SHIFT, fromEnum '=', fromEnum '^', fromEnum '/']),
+                             (6, [notSupportedKey, fromEnum '*', fromEnum ';' ,toInt Graphics.Win32.vK_HOME, toInt Graphics.Win32.vK_SHIFT, {-fromEnum '='-}0xBB, fromEnum '^', fromEnum '/']),
                              (7, [fromEnum '1', toInt Graphics.Win32.vK_DELETE, toInt Graphics.Win32.vK_CONTROL, fromEnum '2', fromEnum ' ', notSupportedKey, fromEnum 'Q', notSupportedKey])
                   ]
 
